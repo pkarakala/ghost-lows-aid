@@ -10,10 +10,12 @@ noise is pre-drawn per sample, and stale holds the first reading of its segment 
 The realisation does depend on the planned run length (`days`: the number of candidate faults,
 their start times and the complete nights), so a schedule is drawn for the whole planned run.
 
-`SingleFault` is one event of one type at onset t0, for branching episodes: its shape is drawn
-from paper 1's own distributions, set at a quantile of them (a severity level), or set explicitly.
-It adds two fault types paper 1 lacks: a sustained positive bias (false high, for example drug
-interference), which pushes oref0 to over-deliver, and a sustained negative bias.
+`SingleFault` is one event of one type at onset t0, for branching episodes (PI_decisions.md rev 2
+§6): its shape is drawn from paper 1's own distributions, set at a quantile of them (a severity
+level), or set explicitly. Beyond paper 1's operators it has a held multiplicative gain (drift
+held for the window, the +/-20% and +/-40% levels), the G6 long-gap model, and a sustained
+additive bias with a rise, a hold and an exponential offset: positive for drug interference (a
+false high, which pushes oref0 to over-deliver), negative for a sustained false low.
 
 Faults only ever produce `cgm_observed`; truth is never an input (rule 4).
 """
@@ -37,8 +39,7 @@ from ghostlows.faults.suite import (
 SAMPLE_MIN = 5
 RANK = {kind: i for i, kind in enumerate(LABEL_PRIORITY)}
 PAPER1_KINDS = ("pisa", "dropout", "stale", "spike", "drift")
-BIAS_KINDS = ("bias_pos", "bias_neg")
-SINGLE_KINDS = PAPER1_KINDS + BIAS_KINDS
+SINGLE_KINDS = PAPER1_KINDS + ("gain", "bias")
 SINGLE_STREAM = 11  # SeedSequence branch of single events (paper 1 uses 0-4, the person 7)
 NONE = ("none", -1)
 
@@ -197,24 +198,65 @@ class FaultSchedule:
 
 
 # ---- one event at onset t0 ----
-# ASSUMPTION: placeholder shape and sizes of the sustained biases until the protocol fixes them
-# from the literature (drug interference such as acetaminophen reads falsely high for hours):
-# additive, linear rise over 30 min, plateau of 6 h, linear return over 60 min; size uniform on
-# 20-80 mg/dL, so quantile 0.5 is 50 mg/dL.
-BIAS_SHAPE = {"rise_min": 30.0, "plateau_min": 360.0, "fall_min": 60.0}
-BIAS_SIZE_MG_DL = (20.0, 80.0)
+# Levels of PI_decisions.md rev 2 §6 (arm numbers in brackets). Gaps of the G6 long-gap model
+# [4], in 5-min samples: 1 + continuations, each continuing with probability 0.855 up to the
+# third sample and 0.727 after (median 20 min; 73% longer than oref0's 12-min staleness limit).
+# SOURCE: Vettoretti 2023 (Model 4 transition probabilities)
+# ASSUMPTION: the transition wiring (PI_decisions §6 #4: "to be checked against the paper")
+G6_CONTINUE = (0.855, 0.727)
+G6_SWITCH_SAMPLE = 3
+# Interference, additive [16, 17]: rise g(u) = (u/tp) exp(1 - u/tp) to the peak at tp, hold at
+# the peak until `hold_until_min`, then exponential decay with time constant `tau_min`.
+# SOURCE: FDA K193371 (repeated 1000 mg vitamin C on Libre 2: +18.4 and +19.7 mg/dL after doses 2
+# and 3); Maahs 2015 (1 g acetaminophen on Dexcom G4: largest mean difference 61 mg/dL at 120 min)
+# ASSUMPTION: the hold and the decay time constants (no washout data, PI_decisions §6)
+INTERFERENCE = {
+    "small": {"size_mg_dl": 20.0, "tp_min": 150.0, "hold_until_min": 630.0, "tau_min": 180.0,
+              "doses_min": [0.0, 240.0, 480.0]},
+    "large": {"size_mg_dl": 60.0, "tp_min": 120.0, "hold_until_min": 120.0, "tau_min": 240.0,
+              "doses_min": [0.0]},
+}  # fmt: skip
+# ASSUMPTION: an additive bias "lasts" until it decays to 10% of its peak, as a PISA does
+# (ghostlows.faults.pisa.END_FRACTION)
+BIAS_END_FRACTION = pisa_model.END_FRACTION
+
+
+def g6_gap_samples(rng: np.random.Generator | None = None, q: float | None = None) -> int:
+    """Length of one G6 long gap in 5-min samples: drawn, or its quantile q."""
+
+    def p_next(n):  # probability that a gap of n samples continues to n + 1
+        return G6_CONTINUE[0] if n < G6_SWITCH_SAMPLE else G6_CONTINUE[1]
+
+    n = 1
+    if q is None:
+        while rng.random() < p_next(n):
+            n += 1
+        return n
+    survive = 1.0  # P(length > n)
+    while True:
+        survive *= p_next(n)
+        if 1 - survive >= q:
+            return n
+        n += 1
 
 
 @dataclass
 class SingleFault:
-    """One fault event. `onset` in minutes from the run start; `params` set its shape (see
-    `draw`). Apply in sample order; samples before the onset pass unchanged."""
+    """One fault event. `onset` in minutes from the run start; `params` set its shape:
+
+    - pisa: depth (mg/dL), duration (min), tau (paper 1's Facchinetti shape, subtractive);
+    - dropout: duration (min), readings missing; stale: duration, the first reading repeated;
+    - spike: duration, sd (mg/dL), noise_seed (N(0, sd) added per reading);
+    - drift and gain: gain (signed fraction), the CGM multiplied by 1 + gain from onset on;
+    - bias: size_mg_dl (signed), tp_min, hold_until_min, tau_min (additive; interference).
+
+    Apply in sample order; readings before the onset pass unchanged."""
 
     kind: str
     onset: float
     params: dict
     fault_id: int = 0
-    label_above: float = 0.05  # drift is labelled from |bias| >= 5%, as paper 1
+    label_above: float = 0.05  # drift is labelled from |gain| >= 5%, as paper 1
     _held: float | None = None
 
     def __post_init__(self):
@@ -228,27 +270,50 @@ class SingleFault:
     # -- shapes --
     @classmethod
     def draw(
-        cls, kind: str, onset: float, seed: int, config: FaultConfig | None = None, **overrides
+        cls,
+        kind: str,
+        onset: float,
+        seed: int,
+        config: FaultConfig | None = None,
+        gap_model: str = "paper1",
+        sign: float | None = None,
+        **overrides,
     ) -> SingleFault:
-        """Shape drawn from paper 1's distributions (suite.py, pisa.py) at `config.severity`;
+        """Shape drawn from paper 1's distributions (suite.py, pisa.py) at `config.severity`, or
+        for a dropout from the G6 model (`gap_model="g6"`); `sign` fixes a drift's direction;
         anything in `overrides` is set explicitly instead."""
         rng = np.random.default_rng(
             np.random.SeedSequence([seed, SINGLE_STREAM, SINGLE_KINDS.index(kind)])
         )
-        return cls._make(kind, onset, config or FaultConfig(), rng, None, overrides)
+        return cls._make(
+            kind, onset, config or FaultConfig(), rng, None, gap_model, sign, overrides
+        )
 
     @classmethod
     def at_quantile(
-        cls, kind: str, onset: float, q: float, config: FaultConfig | None = None, **overrides
+        cls,
+        kind: str,
+        onset: float,
+        q: float,
+        config: FaultConfig | None = None,
+        gap_model: str = "paper1",
+        sign: float | None = None,
+        **overrides,
     ) -> SingleFault:
-        """Shape at quantile q of each of paper 1's size distributions: a severity level
-        (q = 0.5 the median event, q = 0.95 a large one)."""
+        """Shape at quantile q of each of the size distributions: a severity level (q = 0.5 the
+        median event, q = 0.95 the 95th percentiles, as PISA severe)."""
         if not 0 < q < 1:
             raise ValueError("q must be in (0, 1)")
-        return cls._make(kind, onset, config or FaultConfig(), None, q, overrides)
+        cfg = config or FaultConfig()
+        return cls._make(kind, onset, cfg, None, q, gap_model, sign, overrides)
 
     @classmethod
-    def _make(cls, kind, onset, cfg, rng, q, overrides) -> SingleFault:
+    def interference(cls, onset: float, level: str, **overrides) -> SingleFault:
+        """Drug interference at level "small" or "large" (PI_decisions §6 #16-17)."""
+        return cls("bias", float(onset), {**INTERFERENCE[level], **overrides})
+
+    @classmethod
+    def _make(cls, kind, onset, cfg, rng, q, gap_model, sign, overrides) -> SingleFault:
         def uniform(lo_hi):
             lo, hi = lo_hi
             return float(rng.uniform(lo, hi)) if q is None else lo + q * (hi - lo)
@@ -262,58 +327,68 @@ class SingleFault:
                 depth, duration = pisa_model.DEPTH.quantile(q), pisa_model.DURATION.quantile(q)
             params = {"depth": depth, "duration": duration, "tau": cfg.pisa_tau}
         elif kind == "dropout":
-            rate = DROPOUT_RATE_PER_MIN
-            gap = rng.exponential(1 / rate) if q is None else -np.log(1 - q) / rate
-            params = {"duration": float(gap)}
+            if gap_model == "g6":
+                params = {"duration": float(SAMPLE_MIN * g6_gap_samples(rng, q)), "model": "g6"}
+            elif gap_model == "paper1":
+                rate = DROPOUT_RATE_PER_MIN
+                gap = rng.exponential(1 / rate) if q is None else -np.log(1 - q) / rate
+                params = {"duration": float(gap), "model": "paper1"}
+            else:
+                raise ValueError(f"gap_model {gap_model!r} not in ('paper1', 'g6')")
         elif kind == "stale":
             params = {"duration": uniform(cfg.stale_minutes)}
         elif kind == "spike":
             seed = int(rng.integers(2**31)) if q is None else 0
-            params = {
-                "duration": uniform(cfg.spike_minutes),
-                "sd": cfg.spike_sd * s,
-                "noise_seed": seed,
-            }
+            params = {"duration": uniform(cfg.spike_minutes), "sd": cfg.spike_sd * s,
+                      "noise_seed": seed}  # fmt: skip
         elif kind == "drift":
-            # ASSUMPTION: paper 1's end-of-life bias (suite.py:132), reached linearly over the
-            # sensor's life; the event is the sensor at age `age_days` (uniform when drawn, end of
-            # life at a quantile), its bias capped at the end-of-life value within the window.
-            sign = float(rng.choice([-1.0, 1.0])) if q is None else 1.0
+            # ASSUMPTION (PI_decisions §6 #10, #12): paper 1's drift at a uniformly drawn sensor
+            # age, held for the window: end-of-life size U(drift_range) x severity (suite.py:132),
+            # reached linearly over the sensor's life; a quantile event is at the end of life.
+            if sign is None:
+                sign = float(rng.choice([-1.0, 1.0])) if q is None else 1.0
             age = float(rng.uniform(0, cfg.sensor_days)) if q is None else cfg.sensor_days
-            params = {
-                "size": sign * uniform(cfg.drift_range) * s,
-                "age_days": age,
-                "sensor_days": cfg.sensor_days,
-            }
-        else:
-            sign = 1.0 if kind == "bias_pos" else -1.0
-            params = {**BIAS_SHAPE, "size_mg_dl": sign * uniform(BIAS_SIZE_MG_DL)}
+            gain = sign * uniform(cfg.drift_range) * s * age / cfg.sensor_days
+            params = {"gain": gain, "sensor_age_days": age}
+        else:  # gain and bias: explicit sizes only (stress levels and biases have no distribution)
+            needed = "gain" if kind == "gain" else "size_mg_dl"
+            if needed not in overrides:
+                raise ValueError(f"{kind!r} has no size distribution: give {needed} explicitly")
+            params = {}
         params.update(overrides)
+        if kind == "bias":
+            params = {**INTERFERENCE["large"], "doses_min": [0.0], **params}
         return cls(kind, float(onset), params, label_above=cfg.drift_label_above)
 
     @property
     def end(self) -> float:
-        """First minute at which the fault no longer changes a reading (inf for drift)."""
+        """Minute at which the fault stops changing readings (PISA: below 1% of its depth; a bias:
+        down to 10% of its peak; inf for a gain held for the window)."""
         p = self.params
         if self.kind == "pisa":
             return self.onset + self._pisa.length
         if self.kind in ("dropout", "stale", "spike"):
             return self.onset + p["duration"]
-        if self.kind == "drift":
-            return float("inf")
-        return self.onset + p["rise_min"] + p["plateau_min"] + p["fall_min"]
+        if self.kind == "bias":
+            return self.onset + p["hold_until_min"] + p["tau_min"] * np.log(1 / BIAS_END_FRACTION)
+        return float("inf")
+
+    def describe(self) -> dict:
+        """The realised fault, for the per-arm log."""
+        return {"fault_kind": self.kind, "onset": self.onset, "end": self.end, **self.params}
 
     def bias_mg_dl(self, t: float) -> float:
-        """The additive bias t minutes after onset (bias kinds)."""
+        """The additive bias t minutes after onset (kind "bias")."""
         p = self.params
-        rise, plateau, fall = p["rise_min"], p["plateau_min"], p["fall_min"]
-        if t < 0 or t >= rise + plateau + fall:
+        size, tp, hold = p["size_mg_dl"], p["tp_min"], p["hold_until_min"]
+        if t <= 0:
             return 0.0
-        if t < rise:
-            return p["size_mg_dl"] * t / rise
-        if t < rise + plateau:
-            return p["size_mg_dl"]
-        return p["size_mg_dl"] * (1 - (t - rise - plateau) / fall)
+        if t < tp:
+            u = t / tp
+            return size * u * float(np.exp(1 - u))
+        if t <= hold:
+            return size
+        return size * float(np.exp(-(t - hold) / p["tau_min"]))
 
     # -- the operator --
     def apply(self, k: int, raw: float) -> tuple[float, str, int]:
@@ -328,14 +403,14 @@ class SingleFault:
             if self._pisa.active(minute)[0]:
                 return obs, "pisa", fid
             return obs, "none", -1
-        if kind == "drift":
-            age = min(p["age_days"] + t / 1440, p["sensor_days"])
-            bias = p["size"] * age / p["sensor_days"]
-            label = ("drift", fid) if abs(bias) >= self.label_above else NONE
-            return raw * (1 + bias), *label
-        if kind in BIAS_KINDS:
+        if kind in ("drift", "gain"):
+            gain = p["gain"]
+            label = (kind, fid) if abs(gain) >= self.label_above else NONE
+            return raw * (1 + gain), *label
+        if kind == "bias":
             b = self.bias_mg_dl(t)
-            return (raw + b, kind, fid) if b != 0.0 else (float(raw), "none", -1)
+            active = abs(b) >= BIAS_END_FRACTION * abs(p["size_mg_dl"])
+            return raw + b, *((kind, fid) if active else NONE)
         if t >= p["duration"]:
             return float(raw), "none", -1
         if kind == "dropout":

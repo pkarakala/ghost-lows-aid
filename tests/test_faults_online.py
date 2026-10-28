@@ -9,7 +9,13 @@ import pytest
 from ghostlows.faults import pisa as pisa_model
 from ghostlows.faults.suite import FaultConfig, apply_faults, apply_run
 
-from ghostlows_aid.faults_online import BIAS_SHAPE, SINGLE_KINDS, FaultSchedule, SingleFault
+from ghostlows_aid.faults_online import (
+    INTERFERENCE,
+    SINGLE_KINDS,
+    FaultSchedule,
+    SingleFault,
+    g6_gap_samples,
+)
 from ghostlows_aid.loop import LoopConfig, Person, Routing, make_loop
 
 DAYS = 7
@@ -172,9 +178,18 @@ def run_single(fault: SingleFault, days: int = 1):
     return m, raw, obs, np.array([o[1] for o in out])
 
 
+def example(kind: str) -> SingleFault:
+    """One event of each kind: drawn where paper 1 has a distribution, else a memo level."""
+    if kind == "gain":
+        return SingleFault.draw("gain", ONSET, seed=3, gain=-0.4)
+    if kind == "bias":
+        return SingleFault.interference(ONSET, "large")
+    return SingleFault.draw(kind, ONSET, seed=3)
+
+
 @pytest.mark.parametrize("kind", SINGLE_KINDS)
 def test_single_event_changes_nothing_before_onset(kind):
-    m, raw, obs, label = run_single(SingleFault.draw(kind, ONSET, seed=3))
+    m, raw, obs, label = run_single(example(kind))
     before = m < ONSET
     assert np.array_equal(obs[before], raw[before])
     assert (label[before] == "none").all()
@@ -184,7 +199,7 @@ def test_single_event_changes_nothing_before_onset(kind):
 def test_single_pisa_is_paper1_pisa():
     fault = SingleFault.at_quantile("pisa", ONSET, 0.95)
     depth, duration = fault.params["depth"], fault.params["duration"]
-    assert depth == pytest.approx(48.0) and duration == pytest.approx(70.0)  # paper 1's 95th pct
+    assert depth == pytest.approx(48.0) and duration == pytest.approx(70.0)  # PISA severe
     m, raw, obs, label = run_single(fault)
     pisa = pisa_model.from_size(ONSET, depth, duration)
     np.testing.assert_allclose(raw - obs, pisa.attenuation(m), rtol=0, atol=1e-9)
@@ -208,34 +223,58 @@ def test_single_dropout_stale_spike_windows():
     assert np.array_equal(run_single(spike)[2], obs)  # the noise is fixed by the event
 
 
-@pytest.mark.parametrize("kind", ["bias_pos", "bias_neg"])
-def test_bias_shape(kind):
-    sign = 1 if kind == "bias_pos" else -1
-    fault = SingleFault.at_quantile(kind, ONSET, 0.5)
-    size = fault.params["size_mg_dl"]
-    assert size == sign * 50.0
-    rise, plateau, fall = (BIAS_SHAPE[k] for k in ("rise_min", "plateau_min", "fall_min"))
+def test_g6_gap_model():
+    """Vettoretti 2023 Model 4 as PI_decisions §6 #4 wires it: median 20 min, 73% of gaps
+    longer than oref0's 12-min staleness limit (3 samples or more)."""
+    assert g6_gap_samples(q=0.5) == 4
+    rng = np.random.default_rng(0)
+    n = np.array([g6_gap_samples(rng) for _ in range(20000)])
+    assert np.median(n) == 4
+    assert np.mean(n >= 3) == pytest.approx(0.855**2, abs=0.01)
+    assert np.mean(n >= 2) == pytest.approx(0.855, abs=0.01)
+    fault = SingleFault.draw("dropout", ONSET, seed=5, gap_model="g6")
+    assert fault.params["model"] == "g6" and fault.params["duration"] % 5 == 0
+    assert SingleFault.at_quantile("dropout", 0.0, 0.5, gap_model="g6").params["duration"] == 20
+
+
+@pytest.mark.parametrize("level", ["small", "large"])
+def test_interference_shape(level):
+    fault = SingleFault.interference(ONSET, level)
+    p = INTERFERENCE[level]
+    size, tp, hold, tau = p["size_mg_dl"], p["tp_min"], p["hold_until_min"], p["tau_min"]
     assert fault.bias_mg_dl(-5) == 0 and fault.bias_mg_dl(0) == 0
-    assert fault.bias_mg_dl(rise / 2) == pytest.approx(size / 2)
-    assert fault.bias_mg_dl(rise) == fault.bias_mg_dl(rise + plateau - 1) == size
-    assert fault.bias_mg_dl(rise + plateau + fall / 2) == pytest.approx(size / 2)
-    assert fault.bias_mg_dl(rise + plateau + fall) == 0
-    m, raw, obs, label = run_single(fault)
-    t = m - ONSET
-    expect = np.array([fault.bias_mg_dl(x) for x in t])
+    assert fault.bias_mg_dl(tp / 2) == pytest.approx(size * 0.5 * np.exp(0.5))
+    assert fault.bias_mg_dl(tp) == fault.bias_mg_dl(hold) == size
+    assert fault.bias_mg_dl(hold + tau) == pytest.approx(size / np.e)
+    assert fault.end == pytest.approx(ONSET + hold + tau * np.log(10))
+    m, raw, obs, label = run_single(fault, days=2)
+    expect = np.array([fault.bias_mg_dl(t) for t in m - ONSET])
     np.testing.assert_allclose(obs - raw, expect, rtol=0, atol=1e-12)
-    assert np.array_equal(label == kind, expect != 0)
-    assert fault.end == ONSET + rise + plateau + fall
+    assert np.array_equal(label == "bias", expect >= 0.1 * size)
+    if level == "large":  # about 20% left at 8 h (PI_decisions §6 #17)
+        assert fault.bias_mg_dl(480) / size == pytest.approx(np.exp(-1.5))
 
 
-def test_single_drift_is_multiplicative_and_capped():
-    fault = SingleFault("drift", ONSET, {"size": -0.2, "age_days": 9.9, "sensor_days": 10.0})
+def test_negative_bias_is_a_sustained_false_low():
+    fault = SingleFault("bias", ONSET, {**INTERFERENCE["large"], "size_mg_dl": -40.0})
     m, raw, obs, label = run_single(fault)
-    t = m - ONSET
-    age = np.minimum(9.9 + t / 1440, 10.0)
-    after = t >= 0
-    np.testing.assert_allclose(obs[after] / raw[after], 1 - 0.2 * age[after] / 10, rtol=1e-12)
-    assert (label[after] == "drift").all()
+    after = m > ONSET
+    assert (obs[after] < raw[after]).all() and (obs[m <= ONSET] == raw[m <= ONSET]).all()
+
+
+def test_gain_and_drift_are_held_multiplicative():
+    for kind, gain in [("gain", 0.4), ("gain", -0.2), ("drift", -0.2)]:
+        fault = SingleFault(kind, ONSET, {"gain": gain})
+        m, raw, obs, label = run_single(fault)
+        after = m >= ONSET
+        np.testing.assert_allclose(obs[after], raw[after] * (1 + gain), rtol=1e-15)
+        assert (label[after] == kind).all()
+    low = SingleFault.draw("drift", ONSET, seed=8, sign=-1.0)
+    high = SingleFault.draw("drift", ONSET, seed=8, sign=1.0)
+    assert low.params["gain"] == -high.params["gain"] < 0
+    assert abs(low.params["gain"]) <= 0.2 * 0.5  # paper 1's maximum at s = 0.5
+    with pytest.raises(ValueError, match="explicitly"):
+        SingleFault.draw("gain", ONSET, seed=1)
 
 
 def test_single_event_draws_follow_paper1_distributions():
@@ -247,6 +286,8 @@ def test_single_event_draws_follow_paper1_distributions():
     assert median["depth"] == pytest.approx(24.0) and median["duration"] == pytest.approx(45.0)
     gap = SingleFault.at_quantile("dropout", 0.0, 0.9).params["duration"]
     assert gap == pytest.approx(20.0)  # 90% of gaps under 20 min (paper 1's rate)
-    assert SingleFault.draw("spike", 0.0, seed=1).params["sd"] == 20.0 * 0.5
+    spike = SingleFault.draw("spike", 0.0, seed=1).params
+    assert spike["sd"] == 20.0 * 0.5 and 15 <= spike["duration"] <= 30  # typical: s = 0.5
     explicit = SingleFault.draw("pisa", 0.0, seed=1, depth=30.0, duration=60.0).params
     assert explicit["depth"] == 30.0 and explicit["duration"] == 60.0
+    assert SingleFault.draw("pisa", 0.0, seed=1).describe()["fault_kind"] == "pisa"
