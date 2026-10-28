@@ -1,6 +1,12 @@
 # AGENTS.md
 
-The project rules for any AI agent, whatever the tool; `CLAUDE.md` only points here. People start at the [README](README.md).
+The project rules for any AI agent, whatever the tool; `CLAUDE.md`, `GEMINI.md` and `.github/copilot-instructions.md` only point here. People start at the [README](README.md).
+
+## Two layers
+
+- People: [README.md](README.md) and [docs/SUMMARY.md](docs/SUMMARY.md). Short, plain English, no jargon left unexplained; the README stays under 350 words and the summary under one page.
+- Agents and reviewers: this file and the specifications in [docs/reference/](docs/reference/). Complete and exact: every number cited or marked ASSUMPTION, every rule testable.
+- A fact lives in one layer's source document; the other layer links to it rather than restating it differently.
 
 ## What this is
 
