@@ -19,11 +19,11 @@ from ghostlows_aid.analysis.schema import ALARM_PREFIXES
 PAPER1 = {
     "trend": TrendAlarm,
     "threshold": ThresholdAlarm,
-    "gate_aggressive": lambda: GatedAlarm(BaysalDetector("aggressive")),
-    "gate_trial": lambda: GatedAlarm(BaysalDetector("trial")),
-    "gate_nominal": lambda: GatedAlarm(BaysalDetector("nominal")),
-    "gate_cautious": lambda: GatedAlarm(BaysalDetector("cautious")),
-    "gate_mf": lambda: GatedAlarm(MatchedFilterDetector()),
+    "baysal_aggressive": lambda: GatedAlarm(BaysalDetector("aggressive")),
+    "baysal_trial": lambda: GatedAlarm(BaysalDetector("trial")),
+    "baysal_nominal": lambda: GatedAlarm(BaysalDetector("nominal")),
+    "baysal_cautious": lambda: GatedAlarm(BaysalDetector("cautious")),
+    "matched_filter": lambda: GatedAlarm(MatchedFilterDetector()),
 }
 QUIET = 180  # minutes of flat glucose at the start of the run
 
@@ -133,8 +133,8 @@ def test_window_counts_equal_paper1_classification_after_t0(run):
     pre = 1380  # t0 at 23:00 on day 1: alarms, lows and PISAs both before and after it
     trace = as_trace(observed, truth, pre_min=pre)
     t0 = DEFAULT_START + pd.Timedelta(minutes=pre)
-    mine = alarm_layer.score_traces([trace], ["trend", "threshold", "gate_trial"])
-    for prefix in ("trend", "threshold", "gate_trial"):
+    mine = alarm_layer.score_traces([trace], ["trend", "threshold", "baysal_trial"])
+    for prefix in ("trend", "threshold", "baysal_trial"):
         alarm = PAPER1[prefix]()
         frame = view(observed, "cgm_observed")
         _, cls, scored = fire_and_score(
@@ -170,10 +170,10 @@ def test_gated_alarms_only_for_open_loop_night_by_default(run):
     observed, _, truth = run
     trace = as_trace(observed, truth, pre_min=QUIET)
     cols = alarm_layer.alarm_columns([trace])[0]
-    assert not np.isnan(cols["gate_trial_false_alarms"])
+    assert not np.isnan(cols["baysal_trial_false_alarms"])
     closed = as_trace(observed, truth, pre_min=QUIET, controller="oref0_tb")
     cols = alarm_layer.alarm_columns([closed])[0]
-    assert np.isnan(cols["gate_trial_false_alarms"]) and not np.isnan(cols["trend_alarms"])
+    assert np.isnan(cols["baysal_trial_false_alarms"]) and not np.isnan(cols["trend_alarms"])
 
 
 @pytest.mark.slow
@@ -197,9 +197,9 @@ def test_paper1_simulation_counts_equal_score_alarm():
     lows = true_events(truth)
     trace = as_trace(observed.assign(mix="clean"), truth, pre_min=15)
     trace.patient_id = "sim:child#003"
-    mine = alarm_layer.score_traces([trace], ["trend", "threshold", "gate_trial"])
+    mine = alarm_layer.score_traces([trace], ["trend", "threshold", "baysal_trial"])
     start = DEFAULT_START + pd.Timedelta(minutes=15)
-    for prefix in ("trend", "threshold", "gate_trial"):
+    for prefix in ("trend", "threshold", "baysal_trial"):
         alarm = PAPER1[prefix]()
         _, cls, scored = fire_and_score(
             alarm,

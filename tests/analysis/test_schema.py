@@ -18,13 +18,13 @@ def test_arm_counts_match_the_memo():
     variants = [a for a in arms_for("oref0_tb") if ARMS[a].variant]
     assert len(variants) == 17
     assert not [a for a in arms_for("open_loop") if ARMS[a].variant]
-    assert ARMS["clean__gate_trial"].slot == "night" and ARMS["clean__correcting"].slot == "dose"
-    assert ARMS["pisa_typical__gate_mf"].tier == 3 and ARMS["frozen_severe__fakecgm"].tier == 2
+    assert ARMS["clean+baysal_trial"].slot == "night" and ARMS["clean+correcting"].slot == "dose"
+    assert ARMS["pisa_typical+matched_filter"].tier == 3 and ARMS["frozen_severe+fakecgm"].tier == 2
 
 
 def _table() -> pd.DataFrame:
     rows = []
-    for arm in (CLEAN, "pisa_typical", "pisa_typical__gate_trial"):
+    for arm in (CLEAN, "pisa_typical", "pisa_typical+baysal_trial"):
         r = schema.empty_row(arm)
         r.update(controller="oref0_tb", patient_id="sim:child#004", seed=101, slot="night")
         r["data_source"] = "synthetic"

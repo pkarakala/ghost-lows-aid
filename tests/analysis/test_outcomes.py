@@ -108,7 +108,7 @@ def test_during_and_after_the_fault_with_the_clean_arm_over_the_same_minutes():
     assert r["insulin_after_u"] == pytest.approx(690 * BASAL) == r["ref_insulin_after_u"]
     assert r["minutes_above_180_during"] == 10 and r["ref_minutes_above_180_during"] == 0
     assert r["minutes_above_180_after"] == 10 + 200 and r["ref_minutes_above_180_after"] == 100
-    held = make_trace("drift_low_typical", fault_end_min=math.inf)
+    held = make_trace("drift_low", fault_end_min=math.inf)
     r = oc.fault_windows(held, make_trace(slot="any"))
     assert r["insulin_after_u"] == 0 and r["insulin_during_u"] == pytest.approx(720 * BASAL)
     assert all(math.isnan(v) for v in oc.fault_windows(clean, None).values())
@@ -136,7 +136,7 @@ def test_time_to_reconverge():
     assert math.isnan(r["reconverge_min"]) and r["reconverged"] is False
     late = make_trace("pisa_typical", fault_end_min=700)  # fewer than 60 min left: censored
     assert oc.reconvergence(late, clean)["reconverged"] is False
-    held = make_trace("drift_low_typical", fault_end_min=math.inf, slot="any")
+    held = make_trace("drift_low", fault_end_min=math.inf, slot="any")
     assert oc.reconvergence(held, make_trace(slot="any"))["reconverged"] is pd.NA
     assert oc.reconvergence(clean, None)["reconverged"] is pd.NA
 

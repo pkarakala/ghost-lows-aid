@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from ghostlows.bench.events import LEVEL_THRESHOLDS, detect_events
 from ghostlows.metrics.consensus import TAR_THRESHOLDS, TBR_THRESHOLDS
-from ghostlows.sim.engine import SAMPLE_MIN, VALIDITY_FLOOR
+from ghostlows.sim.engine import DEFAULT_START, SAMPLE_MIN, VALIDITY_FLOOR
 
 from . import schema
 from .schema import ACTIONS, ARMS, CLEAN, WINDOW_MIN
@@ -292,7 +292,7 @@ _PARAM_KEYS = {
     "fault_depth_mg_dl": ("depth",),
     "fault_duration_min": ("duration",),
     "fault_size": ("size", "size_mg_dl", "sd", "gain", "peak_mg_dl"),
-    "fault_tau_min": ("tau",),
+    "fault_tau_min": ("tau", "tau_min"),
 }
 
 
@@ -390,8 +390,8 @@ def trace_from_loop(
     arm: str,
     onset_minute: int,
     scheduled_basal_u_per_min: float,
-    fault: Mapping[str, float] | None = None,
-    fault_end_min: float = math.nan,
+    fault: Mapping | None = None,
+    fault_end_min: float | None = None,
     pre_min: int = PRE_MIN,
     window_min: int = WINDOW_MIN,
     clock_offset_min: int = 0,
@@ -399,9 +399,11 @@ def trace_from_loop(
 ) -> ArmTrace:
     """An ArmTrace from a ghostlows_aid.loop.LoopResult that spans [t0 - pre_min, t0 + W).
 
-    Reads the 1-min truth and total insulin, the events (`bolus`, `smb`, `rescue` and, once the
-    harness logs them, `correction`) and the 5-min samples (`cgm_person`, and in closed loop
-    `cgm_sent`, `iob`, `cob`, `rT_reason`). Basal per minute = total insulin - boluses - SMBs.
+    Reads the 1-min truth, `insulin_basal`, `insulin_bolus` (the person's meal and correction
+    boluses), `insulin_smb`, the `correction` and `rescue` events, and the 5-min samples
+    (`cgm_person`; in closed loop `cgm_sent`, the reading the controller received after any
+    gate, and `iob`, `cob`, `rT_reason`). `fault` is SingleFault.describe(); the fault's end
+    relative to t0 defaults to its `end - onset` (inf for a held fault).
     """
     lo, hi = onset_minute - pre_min, onset_minute + window_min
     if lo < 0 or hi > len(result.truth):
@@ -415,9 +417,9 @@ def trace_from_loop(
         np.add.at(out, e["minute"].to_numpy(int) - lo, e["value"].to_numpy(float))
         return out
 
-    bolus, smb, corr = per_minute("bolus"), per_minute("smb"), per_minute("correction")
-    basal = np.asarray(result.insulin[lo:hi], float) - bolus - smb - corr
-    basal[np.abs(basal) < 1e-12] = 0.0
+    corr = per_minute("correction")
+    bolus = np.asarray(result.insulin_bolus[lo:hi], float) - corr
+    bolus[np.abs(bolus) < 1e-12] = 0.0
     s = result.samples.set_index("minute").reindex(np.arange(lo, hi, SAMPLE_MIN))
 
     def col(name: str) -> np.ndarray:
@@ -426,6 +428,10 @@ def trace_from_loop(
     reasons = s["rT_reason"] if "rT_reason" in s else pd.Series("", index=s.index)
     person = ev[(ev["kind"].isin(PERSON_BOLUS_EVENTS)) & (ev["minute"] < onset_minute)]
     person = person[person["value"] > 0]
+    fault = dict(fault or {})
+    if fault_end_min is None:
+        end, start = fault.get("end", math.nan), fault.get("onset", onset_minute)
+        fault_end_min = float(end) - float(start) if fault else math.nan
     return ArmTrace(
         controller=controller,
         patient_id=patient_id,
@@ -434,9 +440,9 @@ def trace_from_loop(
         arm=arm,
         onset_minute=onset_minute,
         truth=np.asarray(result.truth[lo:hi], float),
-        basal_u=basal,
+        basal_u=np.asarray(result.insulin_basal[lo:hi], float),
         bolus_u=bolus,
-        smb_u=smb,
+        smb_u=np.asarray(result.insulin_smb[lo:hi], float),
         rescue_g=per_minute("rescue"),
         correction_u=corr,
         cgm_display=col("cgm_person"),
@@ -447,10 +453,33 @@ def trace_from_loop(
         scheduled_basal_u_per_min=float(scheduled_basal_u_per_min),
         last_bolus_minute=float(person["minute"].max()) if len(person) else math.nan,
         fault_end_min=fault_end_min,
-        fault=dict(fault or {}),
+        fault=fault,
         valid=bool(result.valid),
         pre_min=pre_min,
         window_min=window_min,
         clock_offset_min=clock_offset_min,
         data_source=data_source,
+    )
+
+
+def trace_from_run(unit, run, *, pre_min: int = PRE_MIN, window_min: int = WINDOW_MIN) -> ArmTrace:
+    """An ArmTrace from the harness's episodes.Unit and one of its episodes.ArmRun.
+
+    The harness's `clean@<slot>` arm becomes the table's `clean`; its patient `adult#001` becomes
+    `sim:adult#001`; the clock starts at paper 1's DEFAULT_START, as the loop's does.
+    """
+    patient = unit.patient if unit.patient.startswith("sim:") else f"sim:{unit.patient}"
+    return trace_from_loop(
+        run.result,
+        controller=unit.controller,
+        patient_id=patient,
+        seed=int(unit.seed),
+        slot=run.arm.slot,
+        arm=schema.table_arm(run.arm.name),
+        onset_minute=int(run.t0),
+        scheduled_basal_u_per_min=float(unit.scheduled_basal_u_per_min),
+        fault=run.fault,
+        pre_min=pre_min,
+        window_min=window_min,
+        clock_offset_min=DEFAULT_START.hour * 60 + DEFAULT_START.minute,
     )

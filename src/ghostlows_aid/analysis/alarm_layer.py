@@ -34,8 +34,8 @@ def make_alarms() -> dict:
     """Paper 1's alarms by column prefix (fresh instances: gates cache per run)."""
     alarms = {"trend": TrendAlarm(), "threshold": ThresholdAlarm()}
     for s in GATE_SETTINGS:
-        alarms[f"gate_{s}"] = GatedAlarm(BaysalDetector(s))
-    alarms[f"gate_{SECOND_DETECTOR}"] = GatedAlarm(MatchedFilterDetector())
+        alarms[f"baysal_{s}"] = GatedAlarm(BaysalDetector(s))
+    alarms[SECOND_DETECTOR] = GatedAlarm(MatchedFilterDetector())
     return alarms
 
 

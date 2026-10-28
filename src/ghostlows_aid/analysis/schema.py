@@ -1,9 +1,10 @@
 """The per-arm outcome table: arms, keys, columns, units and dtypes in one place, and a validator.
 
 One row per (controller, patient_id, seed, slot, arm) (memo §8, "stored per unit"). Arms are named
-in `ARMS` (memo §6). The fault-free arm of every slot is `clean`: the trunk's own continuation from
-that slot's onset t0. A variant arm is named `<base>__<variant>`, for example
-`pisa_typical__controller_only` or `clean__gate_trial`.
+in `ARMS` (memo §6), with the harness's catalogue names (`ghostlows_aid.episodes.ARMS`). The
+fault-free arm of every slot is `clean` (the harness's `clean@<slot>`, see `table_arm`): the
+trunk's own continuation from that slot's onset t0. A variant arm is named `<base>+<variant>`, for
+example `pisa_typical+controller_only` or `clean+baysal_trial`.
 
 How a column's paired effect is formed (`Column.effect`, used by `effects.paired_effects`):
 
@@ -48,7 +49,7 @@ class Arm:
     controllers: tuple[str, ...] = CONTROLLERS
     direction: str = ""  # low or high for drift, gain and interference
     base: str = ""
-    variant: str = ""  # controller_only, person_only, gate_<setting>, fakecgm, correcting
+    variant: str = ""  # controller_only, person_only, baysal_<set>, matched_filter, fakecgm, ...
 
 
 _FAULTS = (
@@ -59,20 +60,21 @@ _FAULTS = (
     Arm("dropout_severe", "any", "dropout", "severe", 2),
     Arm("frozen_typical", "any", "frozen", "typical", 1),
     Arm("frozen_severe", "any", "frozen", "severe", 2),
-    Arm("spikes_typical", "any", "spikes", "typical", 1),
-    Arm("spikes_severe", "any", "spikes", "severe", 2),
-    Arm("drift_low_typical", "any", "drift", "typical", 1, direction="low"),
+    Arm("spike_typical", "any", "spikes", "typical", 1),
+    Arm("spike_severe", "any", "spikes", "severe", 2),
+    Arm("drift_low", "any", "drift", "typical", 1, direction="low"),
     Arm("drift_low_severe", "any", "drift", "severe", 2, direction="low"),
-    Arm("drift_high_typical", "any", "drift", "typical", 1, direction="high"),
+    Arm("drift_high", "any", "drift", "typical", 1, direction="high"),
     Arm("drift_high_severe", "any", "drift", "severe", 2, direction="high"),
-    Arm("gain_low_stress", "any", "gain", "stress", 2, direction="low"),
-    Arm("gain_high_stress", "any", "gain", "stress", 2, direction="high"),
+    Arm("gain_low", "any", "gain", "stress", 2, direction="low"),
+    Arm("gain_high", "any", "gain", "stress", 2, direction="high"),
     Arm("interference_small", "dose", "interference", "small", 2, direction="high"),
     Arm("interference_large", "dose", "interference", "large", 1, direction="high"),
 )
 FAULT_ARMS = tuple(a.name for a in _FAULTS)
 GATE_SETTINGS = ("aggressive", "trial", "nominal", "cautious")  # paper 1's Baysal 2014 sets
-SECOND_DETECTOR = "mf"  # paper 1's causal matched filter (Idi 2023 adaptation), memo §6
+GATES = tuple(f"baysal_{s}" for s in GATE_SETTINGS)  # the harness's detector names
+SECOND_DETECTOR = "matched_filter"  # paper 1's causal matched filter (Idi 2023 adaptation)
 
 
 def _variant(base: str, variant: str, tier: int) -> Arm:
@@ -80,7 +82,7 @@ def _variant(base: str, variant: str, tier: int) -> Arm:
     slot = {"clean_night": "night", "clean_dose": "dose"}.get(base, b.slot if b else "")
     name = base.split("_")[0] if base.startswith("clean") else base
     return Arm(
-        f"{name}__{variant}",
+        f"{name}+{variant}",
         slot,
         b.fault if b else "none",
         b.level if b else "none",
@@ -99,11 +101,11 @@ _VARIANTS = (
     _variant("interference_large", "controller_only", 2),
     _variant("interference_large", "person_only", 2),
     # detector gate (Q5, tier 2) on the night-slot clean continuation and on PISA typical
-    *(_variant("clean_night", f"gate_{s}", 2) for s in GATE_SETTINGS),
-    *(_variant("pisa_typical", f"gate_{s}", 2) for s in GATE_SETTINGS),
+    *(_variant("clean_night", g, 2) for g in GATES),
+    *(_variant("pisa_typical", g, 2) for g in GATES),
     # second detector (Q5, tier 3)
-    _variant("clean_night", f"gate_{SECOND_DETECTOR}", 3),
-    _variant("pisa_typical", f"gate_{SECOND_DETECTOR}", 3),
+    _variant("clean_night", SECOND_DETECTOR, 3),
+    _variant("pisa_typical", SECOND_DETECTOR, 3),
     # guard ablation (Q5, tier 2): flat-CGM check bypassed by the device name
     _variant("frozen_severe", "fakecgm", 2),
     # correcting person (N7, tier 3)
@@ -115,6 +117,11 @@ ARMS: dict[str, Arm] = {
     **{a.name: a for a in _FAULTS},
     **{a.name: a for a in _VARIANTS},
 }
+
+
+def table_arm(name: str) -> str:
+    """The outcome table's arm name for a harness arm name (`clean@night` -> `clean`)."""
+    return CLEAN if name.startswith(f"{CLEAN}@") else name
 
 
 def arms_for(controller: str, max_tier: int = 3) -> list[str]:
@@ -143,7 +150,7 @@ KEYS = ("controller", "patient_id", "seed", "slot", "arm")
 UNIT_KEYS = ("controller", "patient_id", "seed", "slot")  # one trunk branch point
 
 # Paper 1's alarm layer (alarm_layer.py maps each prefix to a ghostlows alarm).
-ALARM_PREFIXES = ("trend", "threshold", *(f"gate_{s}" for s in (*GATE_SETTINGS, SECOND_DETECTOR)))
+ALARM_PREFIXES = ("trend", "threshold", *GATES, SECOND_DETECTOR)
 ALARM_FIELDS = {
     "alarms": "alarms fired in the window (floor included)",
     "false_alarms": "alarms in the window matched to no true level 1 low (paper 1 §4)",

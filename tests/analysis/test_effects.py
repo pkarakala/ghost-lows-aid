@@ -156,15 +156,15 @@ def test_contrasts_between_arms_and_controllers():
         effects={
             ("oref0_tb", "pisa_typical", "risk_weighted_min"): 10.0,
             ("oref1_smb", "pisa_typical", "risk_weighted_min"): 25.0,
-            ("oref0_tb", "pisa_typical__gate_trial", "risk_weighted_min"): 4.0,
+            ("oref0_tb", "pisa_typical+baysal_trial", "risk_weighted_min"): 4.0,
         },
-        arms=("pisa_typical", "pisa_typical__gate_trial"),
+        arms=("pisa_typical", "pisa_typical+baysal_trial"),
         heterogeneity_sd=0.0,
         seed_sd=0.0,
     )
     table = synthetic_outcomes(d)
     e = ef.paired_effects(table)
-    c = ef.arm_contrast(e, "pisa_typical__gate_trial", "pisa_typical", ["risk_weighted_min"])
+    c = ef.arm_contrast(e, "pisa_typical+baysal_trial", "pisa_typical", ["risk_weighted_min"])
     assert len(c) == 30 * 4 and np.allclose(c["risk_weighted_min"], -6.0)
     k = ef.controller_contrast(e, "oref1_smb", "oref0_tb", ["risk_weighted_min"])
     k = k[k["arm"] == "pisa_typical"]
