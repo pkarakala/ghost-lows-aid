@@ -188,7 +188,7 @@ def display(value: float, limits: tuple[float, float], integer: bool) -> float:
     if value != value:  # NaN
         return value
     v = min(max(value, limits[0]), limits[1])
-    return math.floor(v + 0.5) if integer else v
+    return float(math.floor(v + 0.5)) if integer else v
 
 
 # ---- state ----
