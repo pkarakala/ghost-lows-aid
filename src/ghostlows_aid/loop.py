@@ -75,6 +75,14 @@ class Person:
     # ASSUMPTION: the wizard and the rescue rule use the newest displayed reading up to 15 min old;
     # with none, the wizard gives no correction and no rescue is triggered.
     reading_max_age_min: int = 15
+    # Correcting-person variant (PI_decisions rev 2 §5, tier 3), off by default: a correction bolus
+    # of max(0, (CGM - target)/ISF - IOB) when the displayed CGM is at or above `correct_above` in
+    # waking hours and the person gave no bolus (meal or correction; SMBs are the pump's) in the
+    # last 3 h. ASSUMPTION: 250 mg/dL, level 2 hyperglycaemia (Battelino 2019); needs a
+    # CLINICAL-REVIEW item.
+    correct_above: float | None = None
+    correct_hours: tuple[int, int] = (7, 23)
+    correct_gap_min: int = 180
 
     def __post_init__(self):
         if self.bolus_rule not in ("wizard", "paper1"):
@@ -83,14 +91,22 @@ class Person:
             raise ValueError(f"rescue_signal {self.rescue_signal!r}")
 
 
+CORRECTING = Person(correct_above=250.0)
+
+
 @dataclass(frozen=True)
 class Routing:
     """Who sees which signal, and the deliberate input manipulations (all off by default)."""
 
     controller_sees: str = "faulted"  # "clean": the fault reaches only the person
     person_sees: str = "faulted"  # "clean": the fault reaches only the controller
-    gate: bool = False  # apply the real-time detector between the faulted CGM and the controller
-    gate_policy: str = "hold"  # flagged reading: "hold" the last unflagged value, or "drop" it
+    # Gate a detector (detectors.py) between the displayed CGM and the controller; without `gate`
+    # an attached detector only observes (its flags are logged). The person always sees the raw
+    # displayed CGM.
+    gate: bool = False
+    # flagged reading: "hold" re-sends the last unflagged value with a fresh timestamp (oref0's
+    # flat-CGM check can still act); "drop" sends nothing (oref0 then sees the data age).
+    gate_policy: str = "hold"
     # Guard ablations. These manipulate oref0's INPUTS, never its code (rule 6):
     fakecgm: bool = False  # report device "fakecgm": skips the flat-CGM check (db.js:177-185)
     restamp_missing: bool = False  # re-send the last reading stamped "now" when one is missing:
@@ -172,31 +188,7 @@ def display(value: float, limits: tuple[float, float], integer: bool) -> float:
     if value != value:  # NaN
         return value
     v = min(max(value, limits[0]), limits[1])
-    return math.floor(v + 0.5) if integer else v
-
-
-# ---- the detector gate ----
-class BaysalGate:
-    """Paper 1's causal Baysal 2014 PISA rules (ghostlows.retro.baysal.baysal_flags) run online on
-    the readings bound for the controller. The flag of a reading is the batch flag of the stream up
-    to and including it (the rules are causal), so it equals the post hoc flag at that sample."""
-
-    def __init__(self, params=None, window_samples: int | None = None):
-        self.params = params
-        self.window = window_samples
-        self.minutes: list[int] = []
-        self.values: list[float] = []
-
-    def flag(self, minute: int, value: float) -> bool:
-        from ghostlows.retro.baysal import baysal_flags
-
-        self.minutes.append(minute)
-        self.values.append(value)
-        if value != value:
-            return False
-        lo = 0 if self.window is None else max(0, len(self.minutes) - self.window)
-        times = pd.Timestamp("2000-01-01") + pd.to_timedelta(self.minutes[lo:], unit="min")
-        return bool(baysal_flags(times, np.asarray(self.values[lo:], float), self.params)[-1])
+    return float(math.floor(v + 0.5)) if integer else v
 
 
 # ---- state ----
@@ -208,7 +200,10 @@ class LoopState:
     noise: object  # simglucose CGMNoise (plain Python state)
     plasma: np.ndarray  # 1-min truth (x3/Vg), filled up to `minute`
     isf: np.ndarray  # 1-min interstitial glucose (x12/Vg)
-    insulin: np.ndarray  # 1-min insulin delivered (U)
+    insulin: np.ndarray  # 1-min insulin delivered (U): basal_1min + bolus_1min + smb_1min
+    basal_1min: np.ndarray  # scheduled basal or the running temp
+    bolus_1min: np.ndarray  # the person's meal and correction boluses
+    smb_1min: np.ndarray  # oref1 microboluses
     rows: list  # one dict per 5-min sample
     events: list  # (minute, kind, value)
     ledger: Ledger
@@ -219,9 +214,10 @@ class LoopState:
     last_treatment: float
     last_iob: float | None  # the controller's latest IOB (the wizard's "pump IOB")
     faults: object | None
-    gate: BaysalGate | None
+    gate: object | None  # a detector with flag(minute, value) (detectors.py)
     last_unflagged: tuple | None  # (minute, value) of the last reading the gate passed
     controller_errors: int = 0
+    last_person_bolus: float = -np.inf  # minute of the person's last bolus (correcting variant)
 
 
 class ClosedLoop:
@@ -234,7 +230,7 @@ class ClosedLoop:
         noise_seed: int,
         person_seed: int,
         faults=None,
-        detector: BaysalGate | None = None,
+        gate=None,
         controller: OrefController | None = None,
         profile: dict | None = None,
     ):
@@ -279,6 +275,9 @@ class ClosedLoop:
             plasma=np.full(n, np.nan),
             isf=np.full(n, np.nan),
             insulin=np.zeros(n),
+            basal_1min=np.zeros(n),
+            bolus_1min=np.zeros(n),
+            smb_1min=np.zeros(n),
             rows=[],
             events=[],
             ledger=Ledger(self.start_ms),
@@ -289,9 +288,10 @@ class ClosedLoop:
             last_treatment=-np.inf,
             last_iob=None,
             faults=faults,
-            gate=detector,
+            gate=gate,
             last_unflagged=None,
         )
+        self.base_config = config
         self.routing = config.routing
         self.bridge_ms: list[float] = []  # wall time per controller call (diagnostics only)
 
@@ -312,6 +312,28 @@ class ClosedLoop:
 
     def set_routing(self, routing: Routing) -> None:
         self.routing = routing
+
+    def set_person(self, person: Person) -> None:
+        self.config = replace(self.config, person=person)
+
+    def branch(self, snapshot: LoopState, faults=None, routing=None, person=None, gate=None):
+        """Restore `snapshot` and set one arm's fault, routing, person and gate (each back to the
+        trunk's setting when not given). A gate's detector is first fed every reading the
+        controller was shown before the snapshot, so it starts in the state it would have had
+        watching from the start; it acts only from here on."""
+        self.restore(snapshot)
+        self.state.faults = faults
+        self.routing = routing or self.base_config.routing
+        self.config = replace(self.base_config, person=person or self.base_config.person)
+        if gate is not None:
+            last = None
+            for row in self.state.rows:
+                m, v = row["minute"], row["cgm_controller"]
+                if not gate.flag(m, v) and v == v:
+                    last = (m, v)
+            self.state.last_unflagged = last
+        self.state.gate = gate
+        return self
 
     # -- the minute loop --
     def run(self, until: int | None = None) -> ClosedLoop:
@@ -346,7 +368,9 @@ class ClosedLoop:
             cho += row["carbs_rescue"]
         else:
             row = s.rows[-1] if s.rows else None
-        bolus = 0.0
+        bolus = (
+            row.pop("_correction_now", 0.0) if (row is not None and m % SAMPLE_MIN == 0) else 0.0
+        )
         for meal in self.meals.get(m, ()):
             if meal["eaten"]:
                 cho += meal["carbs_true"]
@@ -357,6 +381,7 @@ class ClosedLoop:
                 dose = self._wizard(m, float(meal["carbs_announced"]))
                 bolus += dose
                 s.ledger.bolus(m, dose, carbs=float(meal["carbs_announced"]))
+                s.last_person_bolus = m
                 s.events.append((m, "carbs_announced", float(meal["carbs_announced"])))
                 s.events.append((m, "bolus", dose))
                 if row is not None:
@@ -366,6 +391,7 @@ class ClosedLoop:
         smb = row.pop("_smb_now", 0.0) if (row is not None and m % SAMPLE_MIN == 0) else 0.0
         insulin = basal + bolus + smb
         s.insulin[m] = insulin
+        s.basal_1min[m], s.bolus_1min[m], s.smb_1min[m] = basal, bolus, smb
         if row is not None:
             row["insulin_basal"] += basal
         self.patient.step(Action(CHO=cho, insulin=insulin))
@@ -420,8 +446,30 @@ class ClosedLoop:
         # the controller
         if self.controller is not None:
             self._control(m, k, to_controller, row)
+        if self.config.person.correct_above is not None:
+            self._correct(m, row)
         s.rows.append(row)
         return row
+
+    def _correct(self, m: int, row: dict) -> None:
+        """The correcting-person variant: a correction bolus on a high displayed reading."""
+        person, s = self.config.person, self.state
+        cgm = self._seen(m)
+        hour = ((self._day_offset() + m) % 1440) // 60
+        lo, hi = person.correct_hours
+        if not (cgm == cgm and cgm >= person.correct_above and lo <= hour < hi):
+            return
+        if m - s.last_person_bolus < person.correct_gap_min:
+            return
+        dose = (cgm - self.config.profile.target) / self.numbers["isf"]
+        dose = round_bolus(max(0.0, dose - max(0.0, self._pump_iob(m))), person.bolus_increment)
+        if dose <= 0:
+            return
+        s.ledger.bolus(m, dose)
+        s.last_person_bolus = m
+        s.events.append((m, "correction", dose))
+        row["insulin_bolus"] += dose
+        row["_correction_now"] = dose
 
     def _day_offset(self) -> int:
         start = pd.Timestamp(self.config.start)
@@ -568,8 +616,11 @@ class ClosedLoop:
             samples=samples,
             truth=truth.copy(),
             insulin=s.insulin[:n].copy(),
+            insulin_basal=s.basal_1min[:n].copy(),
+            insulin_bolus=s.bolus_1min[:n].copy(),
+            insulin_smb=s.smb_1min[:n].copy(),
             events=pd.DataFrame(s.events, columns=["minute", "kind", "value"]),
-            treatments=[r for _, r in s.ledger.records],
+            treatments=[dict(r) for _, r in s.ledger.records],
             valid=valid,
             nadir=float(np.nanmin(truth)) if n else float("nan"),
             controller_errors=s.controller_errors,
@@ -581,6 +632,9 @@ class LoopResult:
     samples: pd.DataFrame  # one row per 5-min sample
     truth: np.ndarray  # 1-min plasma glucose
     insulin: np.ndarray  # 1-min insulin delivered (U)
+    insulin_basal: np.ndarray  # of which: scheduled basal or temp
+    insulin_bolus: np.ndarray  # the person's boluses
+    insulin_smb: np.ndarray  # microboluses
     events: pd.DataFrame
     treatments: list
     valid: bool  # False if plasma fell below VALIDITY_FLOOR (paper 1)
@@ -605,7 +659,7 @@ def make_loop(
     days: int,
     mix: Mix = STANDARD,
     faults=None,
-    detector: BaysalGate | None = None,
+    gate=None,
     profile: dict | None = None,
     controller: OrefController | None = None,
 ) -> ClosedLoop:
@@ -617,7 +671,7 @@ def make_loop(
         seeds["noise"],
         seeds["person"],
         faults=faults,
-        detector=detector,
+        gate=gate,
         profile=profile,
         controller=controller,
     )
