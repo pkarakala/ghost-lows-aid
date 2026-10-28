@@ -340,8 +340,7 @@ def validate(table: pd.DataFrame) -> pd.DataFrame:
         ):
             if (g[col] != want).any():
                 problems.append(f"arm {arm}: {col} must be {want!r}")
-    units = table.groupby(list(UNIT_KEYS))["arm"]
-    n_clean = units.agg(lambda s: int((s == CLEAN).sum()))
+    n_clean = (table["arm"] == CLEAN).groupby([table[k] for k in UNIT_KEYS]).sum()
     if (n_clean != 1).any():
         problems.append(
             f"{int((n_clean != 1).sum())} (controller, patient, seed, slot) units "
