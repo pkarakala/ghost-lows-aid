@@ -114,17 +114,17 @@ _PAPER1 = {  # per-day rates of the faults without a published range (paper 1, a
 # 1's short gaps in the low and high scenarios (as in C1's sensitivity analysis).
 SCENARIOS = {
     "central": {
-        "pisa_typical": RATES["pisa_day_central"],
+        "pisa_typical": RATES["pisa_nights_central"],
         "dropout_short": RATES["dropout_short"],
         **_PAPER1,
     },
     "low": {
-        "pisa_typical": RATES["pisa_day_low"],
+        "pisa_typical": RATES["pisa_nights_low"],
         "dropout_long": RATES["dropout_long_low"],
         **_PAPER1,
     },
     "high": {
-        "pisa_typical": RATES["pisa_day_high"],
+        "pisa_typical": RATES["pisa_nights_high"],
         "dropout_long": RATES["dropout_long_high"],
         **_PAPER1,
     },

@@ -1,5 +1,6 @@
 """The confirmatory family H1-H2 on `oref0_tb` (memo §9): estimates, bootstrap p-values, Holm's
-step-down and the three-way rule (meaningful harm / negligible / inconclusive).
+step-down and the four-way rule (meaningful harm / negligible / opposite direction /
+inconclusive).
 
 Exactly as memo §9: for hypothesis k, a_k and b_k are the shares of bootstrap replicates of theta
 at or below 0 and at or above 0, each (1 + count) / (B + 1); p_k = min(1, 2 min(a_k, b_k)). Holm
@@ -7,7 +8,9 @@ at familywise alpha = 0.05 over the two: the smaller p is compared with 0.025 an
 passes, the larger with 0.05. "Meaningful harm" needs that rejection, a positive estimate and the
 estimate >= SESOI, and its CI is reported at the Holm-adjusted level of its step (97.5% or 95%).
 "Negligible" if the 90% CI lies within (-SESOI, SESOI) (TOST, each at alpha = 0.05, not adjusted);
-otherwise "inconclusive". Co-reported outcomes get 95% CIs, uncorrected and labelled so.
+"opposite direction" if the Holm test rejects with an estimate <= -SESOI (an unexpected direction,
+never reported as harm); otherwise "inconclusive". Co-reported outcomes get 95% CIs, uncorrected
+and labelled so.
 """
 
 from __future__ import annotations
@@ -24,9 +27,10 @@ from .schema import ARMS, PRIMARY_CONTROLLER
 
 ALPHA = 0.05  # memo §9: familywise alpha (Holm)
 TOST_ALPHA = 0.05  # memo §9: each TOST at alpha = 0.05, i.e. the 90% CI
-HARM, NEGLIGIBLE, INCONCLUSIVE, NOT_ESTIMABLE = (
+HARM, NEGLIGIBLE, OPPOSITE, INCONCLUSIVE, NOT_ESTIMABLE = (
     "meaningful harm",
     "negligible",
+    "opposite direction",
     "inconclusive",
     "not estimable",
 )
@@ -82,12 +86,14 @@ def holm(pvalues: Mapping[str, float], alpha: float = ALPHA) -> pd.DataFrame:
 
 
 def decide(theta: float, rejected: bool, ci90: tuple[float, float], sesoi: float) -> str:
-    """The three-way rule of memo §9, harm first."""
+    """The four-way rule of memo §9, harm first."""
     lo, hi = ci90
     if not (np.isfinite(theta) and np.isfinite(lo) and np.isfinite(hi)):
         return NOT_ESTIMABLE
     if rejected and theta > 0 and theta >= sesoi:
         return HARM
+    if rejected and theta < 0 and theta <= -sesoi:
+        return OPPOSITE
     if -sesoi < lo and hi < sesoi:
         return NEGLIGIBLE
     return INCONCLUSIVE

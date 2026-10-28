@@ -26,6 +26,9 @@ from . import effects as ef
 _P1 = FaultConfig()
 S_MODERATE = 0.5  # paper 1's moderate severity s = 0.5 (memo §6 arms 3, 6, 8 and §9 C1)
 
+# SOURCE: Lobo 2026 (1,260 PISAs with a sensor minimum below 85 mg/dL in 94,201 h)
+LOBO_PER_DAY = 0.321
+
 RATES = {
     # Events per person-day. Paper 1 draws its non-PISA faults at full-severity rates and keeps
     # each with probability s, so the rate at s = 0.5 is half of FaultConfig's.
@@ -47,13 +50,16 @@ RATES = {
     # SOURCE: Vettoretti 2023, G6 trial: 0.13 to 0.24 gaps per day (the long-gap model, arm 4).
     "dropout_long_low": 0.13,
     "dropout_long_high": 0.24,
-    # Compression per person-day for the person-year harm (memo §10 Q7).
-    # SOURCE: LoopEval 2026 (lowest published, 0.03 per person-day).
-    "pisa_day_low": 0.03,
-    # SOURCE: Lobo 2026, paper 1's 0.321 per day (central).
-    "pisa_day_central": 0.321,
-    # SOURCE: Idi 2025 (about 0.33 per day, highest published).
-    "pisa_day_high": 0.33,
+    # Compression for the person-year harm (memo §10 Q7), as a fraction of nights with a PISA:
+    # paper 1's 0.86 reproduces Lobo 2026's 0.321 detected PISAs per day, so a published detected
+    # rate r maps to 0.86 * r / 0.321 nights.
+    # ASSUMPTION (memo §10 Q7): the published detection definitions are comparable with Lobo's.
+    # SOURCE: Lobo 2026 (0.321 per day) via paper 1's calibration (central).
+    "pisa_nights_central": 0.86,
+    # SOURCE: LoopEval 2026 (0.03 per person-day, the lowest published).
+    "pisa_nights_low": 0.86 * 0.03 / LOBO_PER_DAY,
+    # SOURCE: Idi 2025 (about 0.33 per day, the highest published).
+    "pisa_nights_high": 0.86 * 0.33 / LOBO_PER_DAY,
 }
 
 LAYERS = {  # memo §9 C1: layer -> (controller, outcome)

@@ -99,8 +99,8 @@ def test_controller_contrast_and_person_year(exact):
     contrast, _ = se.controllers(e, boot)
     assert row(contrast, arm="pisa_typical", outcome=H)["theta"] == pytest.approx(20.0)
     py = se.person_year(e, boot)
-    central = 0.321 * 10 + 2 * 1 + 1 * 2 + 1 * 3 + 1 * 4 + 1 * 5
-    low = 0.03 * 10 + 0.13 * 6 + 2 + 3 + 4 + 5
+    central = 0.86 * 10 + 2 * 1 + 1 * 2 + 1 * 3 + 1 * 4 + 1 * 5
+    low = 0.86 * 0.03 / 0.321 * 10 + 0.13 * 6 + 2 + 3 + 4 + 5
     r = row(py, controller="oref0_tb", scenario="central", outcome=H)
     assert r["per_person_year"] == pytest.approx(365 * central)
     assert row(py, controller="oref0_tb", scenario="low", outcome=H)[

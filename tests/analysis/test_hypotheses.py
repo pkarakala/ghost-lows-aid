@@ -61,7 +61,13 @@ def test_holm_step_down(p, rejected):
         (30.0, True, (20.0, 40.0), hy.NEGLIGIBLE),  # significant, but within the SESOI
         (60.0, True, (40.0, 80.0), hy.INCONCLUSIVE),  # below the SESOI, not equivalent
         (100.0, False, (-10.0, 200.0), hy.INCONCLUSIVE),  # large but not rejected
-        (-100.0, True, (-120.0, -80.0), hy.INCONCLUSIVE),  # a benefit has no category
+        (-100.0, True, (-120.0, -80.0), hy.OPPOSITE),  # significant, beyond -SESOI
+        (
+            -50.0,
+            True,
+            (-80.0, -20.0),
+            hy.INCONCLUSIVE,
+        ),  # significant, inside -SESOI, not equivalent
         (np.nan, False, (np.nan, np.nan), hy.NOT_ESTIMABLE),
     ],
 )
