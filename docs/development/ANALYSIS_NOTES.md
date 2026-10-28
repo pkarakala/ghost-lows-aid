@@ -15,7 +15,7 @@ real simulation has been computed: every test and run uses synthetic data or cle
 | arm names and traces fitted to the harness catalogue (episodes.ARMS, Unit, ArmRun) | done |
 | hypotheses.py (H1, H2, three-way rule, Holm) | done |
 | cross_layer.py (C1 and its sensitivity analyses) | done |
-| secondary.py | |
+| secondary.py | done |
 | figures.py, experiments/analyse.py | |
 
 ## 2. The input contract (ArmTrace) and the outcome table
@@ -111,6 +111,49 @@ C1
 - C-e Kendall's tau-b over the five per-day harms (NaN if one layer is all ties); harms equal to
   1e-9 rank as ties.
 
+Secondary (each labelled, uncorrected, 95% CIs from the secondary bootstrap)
+- S1 Pairing efficiency (N1): "primary outcomes" = those of H1, H2 and C1 (minutes above 180,
+  below 70, risk-weighted minutes, trend false alarms), every controller and arm; seeds in
+  increasing order for r + 1 mod N; ratio = paired / cross-seed variance, implied independent
+  runs per paired run = 1 / median ratio; a patient with both variances 0 is left out.
+- S2 Dose-response (N8) for every controller, on minutes above 180 and risk-weighted minutes;
+  patients with fewer than two distinct artifact areas are left out of the mean slope. The
+  crossing split is for the closed loops (no controller input in open loop).
+- S3 Ladders: compression typical-severe; dropout short-long-severe; frozen and spikes
+  typical-severe; drift low typical, -20% (drift severe), -40% (gain low), and the same high;
+  interference small-large. Each rung against clean and against the rung before, event by event,
+  every controller, on risk-weighted minutes and minutes below 70 and above 180.
+- S4 State dependence (Q4) on `oref0_tb`'s 17 fault arms and risk-weighted minutes. Bands < 100,
+  100 to 140 inclusive, > 140 mg/dL of true glucose at onset; trend of the displayed CGM; IOB
+  tertiles within (controller, slot) over the units; night = onset hour in [23, 7). A cell
+  with fewer than 5 patients keeps its counts and loses its estimate. Fixed-effects model:
+  within-patient demeaning, covariates without within-patient variation left out; in a
+  replicate a patient's events count as often as the patient is drawn. Held-out check:
+  intercept, the five covariates and age-group dummies; R^2 pooled over the five folds (sum of
+  squared errors over sum of squares about each training-fold mean), with the fold range.
+- S5 Pathway: the four components on the events that have all three arms (so they add up
+  exactly); the wake curve on the events that have both arms.
+- S6 Mechanism on the fault arms of every controller; the threshold-crossing shares (patient
+  mean of the event indicator) for the closed loops.
+- S7 Gate: net effect per night from the two thetas (0.86 and 0.14 from `RATES`); no gate is 0;
+  ties go to the earlier option (no gate first). Alarm rule: paper 1's `choose_threshold` over the
+  five options in that order, reference = the ungated trend alarm's level 2 sensitivity on the
+  same nights, delta = 0 (paper 1's D5 margin); sensitivity pools caught and missed lows of the
+  two kinds of night with the same weights; level 1 when the nights hold no level 2 low (paper
+  1's A7). The matched filter is reported beside the curves, outside the five-way choice.
+  Coincidence share over the replicates in which both optima are defined.
+- S8 Guards: the flat-CGM check on `oref0_tb` (the only controller with the variant); the
+  stale-data stop for both closed loops.
+- S9 Controllers: oref1_smb - oref0_tb for every fault arm on risk-weighted minutes, minutes
+  below 54, below 70 and above 180 and the insulin parts; the SMB / temp-basal split for
+  oref1_smb's false highs (drift high typical and severe, gain high, interference small and
+  large) and spikes.
+- S10 Person-year harm per controller on risk-weighted minutes and minutes below 54, below 70 and
+  above 180. Central: compression 0.321 per day, short gaps 2.0, frozen 1.0, spikes 1.0, drift 1
+  + 1 windows. Low and high: compression 0.03 and 0.33, long gaps (arm 4) 0.13 and 0.24 in place
+  of short gaps, the rest at paper 1's rates. The additivity check (§7) is a harness run of
+  continuous 7-day trunks, outside the arm table, and is not part of this package.
+
 ## 4. Points in the memo to raise
 
 - M1 Two compression rates are called paper 1's: C1 and the gate use 0.86 per night [Reddy 2026],
@@ -122,3 +165,9 @@ C1
   ends.
 - M4 Shares "from patient-level sums" are not comparable across faults when a patient is missing
   for one fault; the code uses means over the patients present (identical when complete).
+
+- M5 N10 weights false alarms 0.86 / 0.14 over the two kinds of night but does not say how the
+  level 2 sensitivity combines them; the code pools caught and missed lows with the same
+  weights.
+- M6 Q7 gives published ranges only for compression and long gaps; using the long-gap arm in
+  place of the short gaps in the low and high scenarios is an assumption (as in C1).
