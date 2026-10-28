@@ -193,6 +193,28 @@ def glucose_entry(ms: int, value: float, device: str = DEVICE) -> dict:
     }
 
 
+# ---- reading rT.reason ----
+REASON_KINDS = ("temp_mismatch", "stale", "flat", "cgm_error", "low_suspend", "dosing", "none")
+
+
+def reason_kind(reason) -> str:
+    """The branch of determine-basal.js that produced an rT, from its reason text."""
+    if not isinstance(reason, str) or not reason:
+        return "none"
+    if "from pumphistory" in reason:  # determine-basal.js:378-391 (both temp-mismatch checks)
+        return "temp_mismatch"
+    if "BG data is too old" in reason:  # determine-basal.js:187-189
+        return "stale"
+    if "CGM data is unchanged" in reason or "CGM was just calibrated" in reason:  # :190-196
+        return "flat"
+    if "CGM is calibrating" in reason:  # :174-176 (bg <= 10, bg == 38, noise >= 3)
+        return "cgm_error"
+    decision = reason.split("; ", 1)[1] if "; " in reason else reason
+    if "minGuardBG" in decision:  # :906-927, low-glucose suspend
+        return "low_suspend"
+    return "dosing"
+
+
 # ---- the controller ----
 @dataclass
 class Action:
@@ -211,7 +233,7 @@ class OrefController:
 
     profile: dict
     microbolus: bool = False  # determine_basal's microBolusAllowed (oref1 SMB)
-    # SOURCE: TECHNICAL_DESIGN §1.2 (autosens fixed to ratio 1 in v1)
+    # ASSUMPTION: autosens off, ratio fixed to 1 in v1 (TECHNICAL_DESIGN §1.2)
     autosens: dict | None = field(default_factory=lambda: {"ratio": 1.0})
     glucose_hours: float = 24.0  # glucose history sent per call
     treatment_hours: float = 24.0  # pump history sent per call

@@ -97,9 +97,9 @@ def pump_inputs(name: str, s: ProfileSettings) -> dict:
         "max_iob": n["max_iob"],
         "curve": s.curve,
         "enableUAM": uam,
-        # SOURCE: TECHNICAL_DESIGN §5.3 (oref1 arm: enableSMB_with_COB); the other SMB triggers
-        # and maxSMBBasalMinutes 30, maxUAMSMBBasalMinutes 30, SMBInterval 3, bolus_increment 0.1
-        # keep the lib/profile/index.js:40-56 defaults.
+        # ASSUMPTION: the oref1 arm turns on enableSMB_with_COB (TECHNICAL_DESIGN §5.3); the other
+        # SMB triggers and maxSMBBasalMinutes 30, maxUAMSMBBasalMinutes 30, SMBInterval 3,
+        # bolus_increment 0.1 keep the lib/profile/index.js:40-56 defaults.
         "enableSMB_with_COB": smb,
         "skip_neutral_temps": False,  # TECHNICAL_DESIGN §1.1: avoids the getMinutes() branch
     }
