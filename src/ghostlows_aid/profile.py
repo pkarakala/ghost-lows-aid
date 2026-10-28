@@ -46,6 +46,9 @@ class ProfileSettings:
     # ASSUMPTION: classic oref0 (AMA) has UAM off; oref1 turns on SMB with COB and UAM
     # (TECHNICAL_DESIGN §5.3 arms 1 and 2). lib/profile's own default is enableUAM true.
     enable_uam: bool | None = None  # None = by mode
+    # ASSUMPTION: per-patient ISF scale from {0.8, 1.0, 1.25, 1.5}, used only if more than 5 of
+    # 30 patients fail the acceptance criteria under the chosen rule (PI_decisions §4; CR).
+    isf_scale: float = 1.0
 
     def __post_init__(self):
         if self.isf_rule not in ISF_RULES:
@@ -76,6 +79,7 @@ def therapy_numbers(name: str, s: ProfileSettings) -> dict:
     cr_quest, cf_quest = quest(name)
     tdi = quest_tdi(name)
     isf = {"quest": cf_quest, "rule1800": 1800 / tdi, "rule1700": 1700 / tdi}[s.isf_rule]
+    isf *= s.isf_scale
     cr = {"quest": cr_quest, "rule500": 500 / tdi}[s.cr_rule]
     isf, cr = isf * s.bolus_scale, cr * s.bolus_scale
     if s.max_iob is None:

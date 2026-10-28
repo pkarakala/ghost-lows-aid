@@ -184,6 +184,7 @@ class Unit:
     trunk_seconds: float
     scheduled_basal_u_per_min: float
     profile: dict | None
+    warmup_seconds: float = float("nan")  # wall time to the end of the warm-up (or first t0)
 
 
 def run_unit(
@@ -208,6 +209,8 @@ def run_unit(
     t_start = time.perf_counter()
     loop = make_loop(config, seed, SCENARIO_DAYS, mix=mix)
     onsets = {slot: onset(slot, seed, patient, k, n) for slot in SLOT_ORDER}
+    loop.run(min(WARMUP_MIN, *onsets.values()))
+    warmup_seconds = time.perf_counter() - t_start
     snapshots = {}
     for slot, t0 in sorted(onsets.items(), key=lambda kv: kv[1]):
         loop.run(t0)
@@ -215,7 +218,7 @@ def run_unit(
     loop.run(TRUNK_MIN)
     trunk = loop.result()
     unit = Unit(controller, patient, seed, k, n, onsets, trunk, time.perf_counter() - t_start,
-                loop.basal, loop.profile)  # fmt: skip
+                loop.basal, loop.profile, warmup_seconds)  # fmt: skip
     chosen = arms_for(controller) if arms is None else arms
 
     def arm_runs() -> Iterator[ArmRun]:
