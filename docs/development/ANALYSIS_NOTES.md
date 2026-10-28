@@ -65,6 +65,9 @@ Outcomes
   15-min trends are (value at t0 - value 15 min before) / 15; hours since the person's last meal
   or correction bolus (SMBs excluded); hour of day from the trunk clock.
 - O8 Invalid: any truth (history or window) below paper 1's 10 mg/dL floor, or the harness flag.
+  The clean arm's LoopResult is the whole trunk, which runs past t0 + W; its validity is judged
+  on the truth up to t0 + W (as the harness's grid runner does), so a later dip does not drop the
+  slot.
 
 Alarm layer
 - A1 Alarms run on the whole trace with its history (trend fit, Baysal Kalman estimate, refractory

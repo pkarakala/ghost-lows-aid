@@ -428,6 +428,10 @@ def trace_from_loop(
     reasons = s["rT_reason"] if "rT_reason" in s else pd.Series("", index=s.index)
     person = ev[(ev["kind"].isin(PERSON_BOLUS_EVENTS)) & (ev["minute"] < onset_minute)]
     person = person[person["value"] > 0]
+    # a trunk (the clean arm) runs on past t0 + W: its validity is judged up to t0 + W only
+    valid = bool(result.valid)
+    if len(result.truth) > hi:
+        valid = bool(np.nanmin(np.asarray(result.truth[:hi], float)) >= VALIDITY_FLOOR)
     fault = dict(fault or {})
     if fault_end_min is None:
         end, start = fault.get("end", math.nan), fault.get("onset", onset_minute)
@@ -454,7 +458,7 @@ def trace_from_loop(
         last_bolus_minute=float(person["minute"].max()) if len(person) else math.nan,
         fault_end_min=fault_end_min,
         fault=fault,
-        valid=bool(result.valid),
+        valid=valid,
         pre_min=pre_min,
         window_min=window_min,
         clock_offset_min=clock_offset_min,

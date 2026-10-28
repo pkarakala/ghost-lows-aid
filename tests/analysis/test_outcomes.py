@@ -238,3 +238,45 @@ def test_slot_outcomes_refuse_arms_with_another_history():
 def test_trace_lengths_are_checked():
     with pytest.raises(ValueError, match="truth"):
         make_trace(truth=np.zeros(10))
+
+
+def fake_loop_result(n: int, t0: int):
+    """A LoopResult-like object: flat truth, scheduled basal, one meal bolus and one correction."""
+    from types import SimpleNamespace
+
+    truth = np.full(n, 120.0)
+    truth[t0 + 800 :] = 5.0  # below the validity floor, but after the window
+    basal = np.full(n, 0.02)
+    bolus = np.zeros(n)
+    bolus[t0 - 30] = 4.0  # meal bolus
+    bolus[t0 + 60] = 1.5  # correction (logged as an event too)
+    events = pd.DataFrame(
+        {"minute": [t0 - 30, t0 + 60, t0 + 90], "kind": ["bolus", "correction", "rescue"],
+         "value": [4.0, 1.5, 16.0]}
+    )  # fmt: skip
+    minutes = np.arange(0, n, 5)
+    samples = pd.DataFrame(
+        {"minute": minutes, "cgm_person": 118.0, "cgm_sent": 118.0, "iob": 1.0, "cob": 0.0,
+         "rT_reason": "COB: 0, Dev: 0"}
+    )  # fmt: skip
+    return SimpleNamespace(
+        truth=truth, insulin=basal + bolus, insulin_basal=basal, insulin_bolus=bolus,
+        insulin_smb=np.zeros(n), events=events, samples=samples, valid=False,
+    )  # fmt: skip
+
+
+def test_trace_from_loop_reads_the_harness_fields():
+    t0 = 1500
+    r = fake_loop_result(t0 + 720 + 200, t0)
+    fault = {"fault_kind": "pisa", "onset": float(t0), "end": t0 + 75.0, "depth": 24.0}
+    t = oc.trace_from_loop(
+        r, controller="oref0_tb", patient_id="sim:adult#001", seed=101, slot="night",
+        arm="pisa_typical", onset_minute=t0, scheduled_basal_u_per_min=0.02, fault=fault,
+    )  # fmt: skip
+    assert t.valid  # the dip below 10 mg/dL comes after t0 + W
+    assert t.fault_end_min == 75.0 and t.last_bolus_minute == t0 - 30
+    assert t.bolus_u.sum() == pytest.approx(4.0) and t.correction_u.sum() == pytest.approx(1.5)
+    assert t.rescue_g.sum() == 16.0 and len(t.cgm_display) == (120 + 720) // 5
+    row = oc.insulin(t)
+    assert row["insulin_correction_u"] == pytest.approx(1.5) and row["correction_boluses"] == 1
+    assert row["insulin_tb_dev_u"] == pytest.approx(0.0, abs=1e-9)
