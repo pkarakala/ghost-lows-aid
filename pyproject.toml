@@ -1,0 +1,55 @@
+[project]
+name = "ghostlows-aid"
+# The version lives only in src/ghostlows_aid/__init__.py ([tool.hatch.version]).
+dynamic = ["version"]
+description = "CGM sensor faults inside open-source automated insulin delivery: paired harm on true glucose."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Pranav Reddy" }, { name = "Cohen Ferrari" }]
+# simglucose needs gym, which does not build on 3.13 (as in Ghost Lows).
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "ghostlows[bench,sim]",
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyyaml>=6",
+    "scipy>=1.11",
+]
+
+[tool.uv.sources]
+# Paper 1 at its v0.4.0 release (Zenodo version DOI 10.5281/zenodo.23720382).
+ghostlows = { git = "https://github.com/pkarakala/ghost-lows", tag = "v0.4.0" }
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/ghostlows_aid/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ghostlows_aid"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.format]
+exclude = ["*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = [
+    "slow: runs the closed loop for simulated days (deselected by default; run with -m slow)",
+]
