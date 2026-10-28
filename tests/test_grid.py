@@ -6,19 +6,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
 from pathlib import Path
 
 import numpy as np
-import pytest
 from ghostlows.sim.engine import PATIENTS
 
 from ghostlows_aid import episodes
 
 REPO = Path(__file__).resolve().parents[1]
-ANALYSIS_SRC = os.environ.get("GHOSTLOWS_AID_ANALYSIS_SRC") or str(
-    REPO.parent / "ghost-lows-aid-analysis" / "src"
-)
 PATIENT, SEED = "adult#001", 90001
 
 
@@ -37,17 +32,14 @@ def test_trace_sample_is_a_fixed_tenth():
 
 
 def test_contract_filled_from_loop_results():
-    g = grid()
-    try:
-        outcomes, schema = g.load_analysis(ANALYSIS_SRC)
-    except SystemExit:
-        pytest.skip("the analysis package is not available")
+    from ghostlows_aid.analysis import outcomes, schema
+
     chosen = [episodes.ARM_BY_NAME[n] for n in ("pisa_typical", "dropout_short")]
     unit, runs = episodes.run_unit("open_loop", PATIENT, SEED, 0, 20, arms=chosen,
                                    with_faults=False)  # fmt: skip
     by_slot = {}
     for run in runs:
-        by_slot.setdefault(run.arm.slot, []).append(g.to_trace(unit, run, outcomes, schema))
+        by_slot.setdefault(run.arm.slot, []).append(outcomes.trace_from_run(unit, run))
     tables = {slot: outcomes.slot_outcomes(ts) for slot, ts in by_slot.items() if len(ts) > 1}
     assert set(tables) == {"night", "any"}
     for t in tables.values():
@@ -60,7 +52,7 @@ def test_contract_filled_from_loop_results():
 def test_resume_skips_finished_units(tmp_path, monkeypatch):
     g = grid()
     monkeypatch.setattr(g, "keeps_traces", lambda p, s: True)
-    job = (tmp_path, "open_loop", PATIENT, SEED, 0, 20, 0, False, None, "rule1800")
+    job = (tmp_path, "open_loop", PATIENT, SEED, 0, 20, 0, False, "rule1800")
     assert g.run_job(job) == "done"
     record = json.loads(next((tmp_path / "units").glob("*.json")).read_text())
     assert record["arm_s"] == {} and record["trunk_s"] > record["warmup_s"] > 0

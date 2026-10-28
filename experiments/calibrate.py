@@ -78,12 +78,13 @@ def run_one(job) -> str:
 
 
 def run(a) -> None:
+    chosen = json.loads(Path(a.scale_map).read_text())["isf_scale"] if a.scale_map else {}
     jobs = [
         (a.out, p, rule, scale, mode, seed, a.days)
         for seed in a.seeds
         for p in a.patients
         for rule in a.rules
-        for scale in a.scales
+        for scale in ([chosen[p]] if chosen else a.scales)
         for mode in a.modes
     ]
     t = time.perf_counter()
@@ -172,15 +173,41 @@ def md(df: pd.DataFrame) -> str:
     return "\n".join([head, *body])
 
 
+def scale_step(t: pd.DataFrame, sel: dict) -> pd.DataFrame:
+    """PI_decisions §4: per patient, the smallest ISF scale in {0.8, 1.0, 1.25, 1.5} that meets the
+    criteria on oref0_tb, read literally (every patient, not only the failing ones); a patient
+    meeting them at no scale keeps 1.0 and is listed. Returns the runs at the chosen scales."""
+    d = t[(t["rule"] == sel["chosen"]) & (t["mode"] == "oref0_tb")]
+    sel["scales_evaluated"] = sorted(float(x) for x in d["scale"].unique())
+    scales, none = {}, []
+    for p, g in d.groupby("patient"):
+        ok = g[g["passes"]].sort_values("scale")
+        scales[p] = float(ok["scale"].iloc[0]) if len(ok) else 1.0
+        if not len(ok):
+            none.append(p)
+    sel["isf_scale"] = scales
+    sel["no_passing_scale"] = none
+    sel["changed_from_1"] = sorted(p for p, x in scales.items() if x != 1.0)
+    sel["passing_after_scale"] = int(len(scales) - len(none))
+    m = t[t["rule"] == sel["chosen"]]
+    final = m[[x == scales.get(p) for p, x in zip(m["patient"], m["scale"], strict=True)]].copy()
+    final["scale"] = -1.0  # marks "per patient" in the cohort summary
+    return final
+
+
 def table(a) -> None:
     df = load(a.out)
     t = per_patient(df)
     t.to_csv(a.out / "per_patient.csv", index=False)
     c = cohort(t)
     sel = select(t)
+    final = scale_step(t, sel) if sel["scale_step"] else None
     (a.out / "selection.json").write_text(json.dumps(sel, indent=2))
     with (a.out / "summary.md").open("w") as f:
         f.write(md(c) + "\n\n")
+        if final is not None:
+            f.write("\n**Chosen settings (per-patient ISF scale)**\n\n" + md(cohort(final)) + "\n")
+            print(cohort(final).to_string(index=False))
         cols = ["patient", "tir_pct", "tbr70_pct", "tbr54_pct", "tar180_pct", "tar250_pct", "mean",
                 "insulin_u_per_day", "rescue_g_per_day", "invalid", "passes"]  # fmt: skip
         for (rule, scale, mode), d in t.groupby(["rule", "scale", "mode"]):
@@ -201,6 +228,7 @@ def main(argv=None) -> None:
     ap.add_argument("--rules", nargs="+", default=["quest", "rule1800"])
     ap.add_argument("--modes", nargs="+", default=["oref0_tb", "oref1_smb"])
     ap.add_argument("--scales", type=float, nargs="+", default=[1.0])
+    ap.add_argument("--scale-map", help="selection.json: run each patient at its chosen scale")
     ap.add_argument("--days", type=int, default=3)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--out", type=Path, default=OUT)

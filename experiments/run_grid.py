@@ -17,9 +17,7 @@ random 10% of the (patient, seed) pairs, for every controller (episodes.arm_trac
 from __future__ import annotations
 
 import argparse
-import copy
 import json
-import math
 import multiprocessing as mp
 import os
 import time
@@ -28,9 +26,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from ghostlows.sim.engine import PATIENTS, VALIDITY_FLOOR
+from ghostlows.sim.engine import PATIENTS
 
-from ghostlows_aid.episodes import TRUNK_MIN, WINDOW_MIN, arm_trace, arms_for, run_unit
+from ghostlows_aid.episodes import TRUNK_MIN, arm_trace, arms_for, run_unit
 from ghostlows_aid.loop import CONTROLLERS
 from ghostlows_aid.profile import ProfileSettings
 
@@ -54,53 +52,14 @@ def write_atomic(path: Path, write) -> None:
     os.replace(tmp, path)
 
 
-def load_analysis(src: str | None):
-    """The analysis package; until its branch is merged, from its worktree (--analysis-src)."""
-    import ghostlows_aid
-
-    try:
-        from ghostlows_aid.analysis import outcomes, schema
-    except ImportError:
-        if src is None:
-            raise SystemExit("ghostlows_aid.analysis is missing: pass --analysis-src") from None
-        ghostlows_aid.__path__.append(str(Path(src) / "ghostlows_aid"))
-        from ghostlows_aid.analysis import outcomes, schema
-    return outcomes, schema
-
-
-def to_trace(unit, run, outcomes, schema):
-    """Fill the analysis contract from one arm's LoopResult."""
-    t0, result = run.t0, run.result
-    if run.arm.group == "clean":  # the trunk: validity up to t0 + W only
-        result = copy.copy(result)
-        result.valid = bool(np.nanmin(result.truth[: t0 + WINDOW_MIN]) >= VALIDITY_FLOOR)
-    fault = dict(run.fault or {})
-    end = fault.pop("end", math.nan)
-    params = {k: float(v) for k, v in fault.items() if isinstance(v, int | float | np.floating)}
-    params.pop("onset", None)
-    return outcomes.trace_from_loop(
-        result,
-        controller=unit.controller,
-        patient_id=f"sim:{unit.patient}",
-        seed=unit.seed,
-        slot=run.arm.slot,
-        arm=schema.table_arm(run.arm.name),
-        onset_minute=t0,
-        scheduled_basal_u_per_min=unit.scheduled_basal_u_per_min,
-        fault=params,
-        fault_end_min=float(end) - t0 if run.fault else math.nan,
-        window_min=WINDOW_MIN,
-    )
-
-
 def run_job(job) -> str:
-    out, controller, patient, seed, k, n, max_tier, faults, analysis_src, isf_rule = job
+    out, controller, patient, seed, k, n, max_tier, faults, isf_rule = job
     name = f"{controller}_{patient.replace('#', '')}_{seed}"
     marker = out / "units" / f"{name}.json"
     if marker.exists():
         return "skip"
     if faults:
-        outcomes, schema = load_analysis(analysis_src)
+        from ghostlows_aid.analysis import outcomes, schema
     arms = [a for a in arms_for(controller) if a.tier <= max_tier]
     t = time.perf_counter()
     unit, runs = run_unit(controller, patient, seed, k, n, settings=ProfileSettings(
@@ -119,11 +78,11 @@ def run_job(job) -> str:
         if run.arm.group != "clean":
             record["arm_s"][run.arm.name] = run.seconds
         if faults:
-            by_slot[run.arm.slot].append(to_trace(unit, run, outcomes, schema))
+            by_slot[run.arm.slot].append(outcomes.trace_from_run(unit, run))
         if keeps_traces(patient, seed):
             kept.append(arm_trace(unit, run))
     if faults:
-        rows = pd.concat([outcomes.slot_outcomes(ts) for ts in by_slot.values()])
+        rows = schema.validate(pd.concat([outcomes.slot_outcomes(ts) for ts in by_slot.values()]))
         write_atomic(out / "outcomes" / f"{name}.parquet", lambda p: rows.to_parquet(p))
     if kept:
         write_atomic(out / "traces" / f"{name}.pkl.gz", lambda p: pd.to_pickle(kept, p, "gzip"))
@@ -134,13 +93,13 @@ def run_job(job) -> str:
 
 def run(a) -> None:
     if a.isf_rule is None:
-        raise SystemExit("--isf-rule is required until the calibrated rule is fixed (PI_decisions §4)")
+        raise SystemExit("--isf-rule is needed until the calibrated rule is fixed (§4)")
     if a.faults and not (a.frozen and Path(a.frozen).is_file()):
         raise SystemExit("--faults needs --frozen <the DECISIONS.md that records the freeze>")
     seeds = a.seeds or [MAIN_SEED0 + k for k in range(a.n)]
     jobs = [
         (a.out, c, p, s, seeds.index(s) if not a.seeds else a.k, a.n, a.max_tier, a.faults,
-         a.analysis_src, a.isf_rule)
+         a.isf_rule)
         for s in seeds for p in a.patients for c in a.controllers
     ]  # fmt: skip
     t = time.perf_counter()
@@ -230,7 +189,6 @@ def main(argv=None) -> None:
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--faults", action="store_true")
     ap.add_argument("--frozen")
-    ap.add_argument("--analysis-src")
     ap.add_argument("--budget", type=float, default=24.0)
     ap.add_argument("--out", type=Path, default=OUT)
     a = ap.parse_args(argv)
