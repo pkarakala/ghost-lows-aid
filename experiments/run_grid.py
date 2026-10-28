@@ -36,9 +36,10 @@ OUT = Path("results/grid")
 MAIN_SEED0 = 101  # main seeds 101, 102, ... (PI_decisions §7)
 TRACE_SEED, TRACE_FRACTION = 20261028, 0.10  # fixed before any run
 # PI_decisions §4: the ISF rule chosen by the pre-specified selection on calibration seeds
-# (experiments/calibrate.py; SPIKE doc §7), to be fixed by amendment. The per-patient ISF scale
-# waits for the PI's reading of the scale step (--isf-scale-map; 1.0 without it).
+# (experiments/calibrate.py; SPIKE doc §7; DECISIONS.md D16). The per-patient ISF scale map is
+# the failing-patients reading of the scale step (DECISIONS.md D17).
 ISF_RULE = "rule1800"
+ISF_SCALE_MAP = "results/calibration/isf_scale_map.json"
 
 
 def keeps_traces(patient: str, seed: int) -> bool:
@@ -188,7 +189,7 @@ def main(argv=None) -> None:
     ap.add_argument("--controllers", nargs="+", default=list(CONTROLLERS))
     ap.add_argument("--max-tier", type=int, default=3, help="0: the trunk only")
     ap.add_argument("--isf-rule", default=ISF_RULE)
-    ap.add_argument("--isf-scale-map", help="calibrate.py's selection.json: per-patient ISF scales")
+    ap.add_argument("--isf-scale-map", default=ISF_SCALE_MAP, help="per-patient ISF scales (JSON)")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--faults", action="store_true")
     ap.add_argument("--frozen")

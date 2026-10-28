@@ -5,6 +5,17 @@ results/*/
 !results/README.md
 !results/figures/
 !results/tables/
+# the settings calibration and timing behind DECISIONS.md D16-D18 (small; runs and logs stay out)
+!results/calibration/
+results/calibration/*
+!results/calibration/summary.md
+!results/calibration/per_patient.csv
+!results/calibration/selection.json
+!results/calibration/isf_scale_map.json
+!results/calibration/therapy_numbers.csv
+!results/timing/
+results/timing/*
+!results/timing/cost.json
 # python
 __pycache__/
 *.py[cod]
