@@ -577,16 +577,16 @@ The analysis code must match this file before `protocol-v1` is tagged (D13). Aud
 
 Met at df50a9f: `secondary.additivity` and `analyse.py --additivity` (§8.5, except item 9 below); S2 through `analyse.py --exclude-outside-acceptance` (§8.2); S1 through `analyse.py --input results/grid_s1` (§8.1, except item 5 below).
 
-Still to do:
+Met at 2b981a3 (each with its test):
 
-1. `effects.apply_invalid_rule` groups within a controller (`effects.py:39-52`, grouping by the unit keys); D11 drops the (patient, seed, slot) across all three controllers (§2.6).
-2. `outcomes.fault_windows` writes 0 instead of NaN for the after-the-fault columns when the fault lasts the whole window, D = W (`outcomes.py:200-217`) (§2.2).
-3. `secondary.correcting_person` is missing, with the correction share (§4.13).
-4. `secondary.person_year` does not report each fault's term (§4.15).
-5. The S1-against-primary tau-b is not computed (§8.1).
-6. `experiments/analyse.py` does not state in `summary.md` that the standard mix was not run (§8.4).
-7. The share of events that re-converged within the window is not reported beside `reconverge_min` (§7); add it per controller and arm to `effects_summary.csv` or `mechanism.csv`.
-8. The alarm-optimal and harm-optimal rows of `gate_optima.csv` and the gate section of `summary.md` carry the label "in-sample, descriptive" (§4.11).
-9. `secondary.additivity` computes R(o) and applies both conditions of the reading (§8.5).
+1. `effects.apply_invalid_rule` groups within a controller (`effects.py:39-52`, grouping by the unit keys); D11 drops the (patient, seed, slot) across all three controllers (§2.6). **Met at 2b981a3:** `tests/analysis/test_effects.py::test_invalid_rule_drops_the_slot_for_every_controller`.
+2. `outcomes.fault_windows` writes 0 instead of NaN for the after-the-fault columns when the fault lasts the whole window, D = W (`outcomes.py:200-217`) (§2.2). **Met at 2b981a3:** `tests/analysis/test_outcomes.py`.
+3. `secondary.correcting_person` is missing, with the correction share (§4.13). **Met at 2b981a3:** `secondary.correcting_person`, `correcting_person.csv`; `tests/analysis/test_secondary.py`.
+4. `secondary.person_year` does not report each fault's term (§4.15). **Met at 2b981a3:** rows with `arm` = each fault and `total`; `tests/analysis/test_secondary.py`.
+5. The S1-against-primary tau-b is not computed (§8.1). **Met at 2b981a3:** `cross_layer.ranking_tau_b`, `analyse.py --primary-input`, `s1_tau_b.csv`; `tests/analysis/test_secondary.py`, `test_additivity.py`.
+6. `experiments/analyse.py` does not state in `summary.md` that the standard mix was not run (§8.4). **Met at 2b981a3:** `tests/analysis/test_analyse.py`.
+7. The share of events that re-converged within the window is not reported beside `reconverge_min` (§7); add it per controller and arm to `effects_summary.csv` or `mechanism.csv`. **Met at 2b981a3:** `reconverged_share` columns of `effects_summary.csv`; `tests/analysis/test_analyse.py`.
+8. The alarm-optimal and harm-optimal rows of `gate_optima.csv` and the gate section of `summary.md` carry the label "in-sample, descriptive" (§4.11). **Met at 2b981a3:** `label` column and the summary's gate line; `tests/analysis/test_analyse.py`.
+9. `secondary.additivity` computes R(o) and applies both conditions of the reading (§8.5). **Met at 2b981a3:** rows `relative_departure`, `reading`, left-out counts; `tests/analysis/test_additivity.py`.
 
 Each change needs a test, and the synthetic-data run of `experiments/analyse.py` must still pass.
