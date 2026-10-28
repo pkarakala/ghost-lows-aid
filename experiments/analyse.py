@@ -20,6 +20,7 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from ghostlows_aid.analysis import cross_layer, figures, hypotheses, schema, secondary
@@ -99,6 +100,10 @@ def clean_levels(table: pd.DataFrame, boot: ef.Bootstrap) -> pd.DataFrame:
     return ef.estimate(clean, cols, ef.BY_ARM, boot)
 
 
+STANDARD_MIX_NOTE = (
+    "The standard scenario mix was not run: D8 allowed it only if the full design at N = 20 fitted"
+    " the budget with its cost included, and it did not (D18; BENCHMARK §8.4)."
+)
 SCALE_MAP = REPO / "results/calibration/isf_scale_map.json"  # D17
 
 
@@ -126,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--n-boot-confirmatory", type=int, default=ef.N_BOOT_CONFIRMATORY)
     ap.add_argument("--boot-seed", type=int, default=ef.BOOT_SEED)
     ap.add_argument("--no-figures", action="store_true")
+    ap.add_argument("--primary-input", nargs="*", default=[], help="S1: the primary tables")
     ap.add_argument("--additivity", default=None, help="additivity.py output folder (D8)")
     ap.add_argument(
         "--exclude-outside-acceptance",
@@ -170,10 +176,22 @@ def main(argv: list[str] | None = None) -> int:
     effects = ef.paired_effects(kept)
     if not clean_only:
         boot_c = ef.boot_for(kept, args.n_boot_confirmatory, args.boot_seed)
-        results["effects_summary"] = ef.summarise(effects[effects["arm"] != schema.CLEAN], boot)
+        summ = ef.summarise(effects[effects["arm"] != schema.CLEAN], boot)
+        share = secondary.reconverged_share(effects, boot)  # BENCHMARK §7, beside reconverge_min
+        summ = summ.merge(share, on=list(ef.BY_ARM), how="left")
+        not_rc = summ["outcome"] != "reconverge_min"
+        summ.loc[not_rc, ["reconverged_share", "reconverged_lo", "reconverged_hi"]] = np.nan
+        results["effects_summary"] = summ
         results["hypotheses"], results["hypotheses_co_reported"] = hypotheses.run(effects, boot_c)
         results["c1_per_fault"], results["c1_summary"] = cross_layer.run(effects, boot_c)
         results.update(secondary.run(effects, kept, boot))
+        if args.primary_input:  # S1 (BENCHMARK §8.1): tau-b against the primary ranking
+            prim = schema.validate(schema.coerce(read_tables(args.primary_input)))
+            if excluded:
+                prim = prim[~prim["patient_id"].isin(excluded)]
+            prim_kept, _ = ef.apply_invalid_rule(prim)
+            tau = cross_layer.ranking_tau_b(effects, ef.paired_effects(prim_kept), boot_c)
+            results["s1_tau_b"] = pd.DataFrame([tau])
         if args.additivity:
             records = read_additivity_records(Path(args.additivity), excluded)
             if any(not r.get("synthetic") and "faulted" in r for r in records):
@@ -193,6 +211,7 @@ def main(argv: list[str] | None = None) -> int:
     if banner:
         md += [f"**{banner}**", ""]
     md += ["## Data", "", describe(table, counts), ""]
+    md += [STANDARD_MIX_NOTE, ""]
     if excluded:
         md += [
             f"**S2: {len(excluded)} patients outside acceptance excluded before every estimate**"
@@ -224,6 +243,8 @@ def main(argv: list[str] | None = None) -> int:
             "Per-fault per-day harm: c1_per_fault.csv.",
             "",
             "## Secondary and exploratory (labelled, uncorrected, 95% CI)",
+            "",
+            "Gate optima (in-sample, descriptive; neither is a recommended setting):",
             "",
             _md_table(
                 results["gate_optima"],

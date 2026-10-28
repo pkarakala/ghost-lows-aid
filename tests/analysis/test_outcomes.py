@@ -110,7 +110,9 @@ def test_during_and_after_the_fault_with_the_clean_arm_over_the_same_minutes():
     assert r["minutes_above_180_after"] == 10 + 200 and r["ref_minutes_above_180_after"] == 100
     held = make_trace("drift_low", fault_end_min=math.inf)
     r = oc.fault_windows(held, make_trace(slot="any"))
-    assert r["insulin_after_u"] == 0 and r["insulin_during_u"] == pytest.approx(720 * BASAL)
+    assert r["insulin_during_u"] == pytest.approx(720 * BASAL)
+    for k in ("insulin_after_u", "minutes_above_180_after"):  # D9: censored at t0 + W
+        assert math.isnan(r[k]) and math.isnan(r[f"ref_{k}"])
     assert all(math.isnan(v) for v in oc.fault_windows(clean, None).values())
 
 

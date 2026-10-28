@@ -13,10 +13,11 @@ real simulation has been computed: every test and run uses synthetic data or cle
 | schema.py (arms, columns, validator), outcomes.py (ArmTrace, per-arm outcomes), alarm_layer.py | done |
 | synthetic generator, effects.py (invalid rule, paired effects, bootstrap, Monte Carlo error) | done |
 | arm names and traces fitted to the harness catalogue (episodes.ARMS, Unit, ArmRun) | done |
-| hypotheses.py (H1, H2, three-way rule, Holm) | done |
+| hypotheses.py (H1, H2, four-way rule, Holm) | done |
 | cross_layer.py (C1 and its sensitivity analyses) | done |
 | secondary.py | done |
 | figures.py, experiments/analyse.py | done |
+| BENCHMARK §9 requirements (D11 invalid rule, censored after-fault columns, correcting person, per-fault Q7 terms, S1 tau-b, standard-mix note, re-converged share, in-sample gate label, additivity R) | done |
 
 ## 2. The input contract (ArmTrace) and the outcome table
 
@@ -70,8 +71,10 @@ Outcomes
   slot.
 
 Alarm layer
-- A1 Alarms run on the whole trace with its history (trend fit, Baysal Kalman estimate, refractory
-  carry over from the trunk); counted are alarms fired in [t0, t0 + W) and lows with onset there.
+- A1 Alarms run on each arm's trace from t0 - 120 min (`pre_min`), not from the trunk's start:
+  the trend fit, the Baysal Kalman estimate and the refractory period warm up on those 120 min,
+  which are identical across the arms of an event (a limitation copied into every results text,
+  BENCHMARK §7); counted are alarms fired in [t0, t0 + W) and lows with onset there.
   An alarm late in the window before a low that starts after the window counts as false: the same
   edge for every arm.
 - A2 Gated alarms (four Baysal sets, matched filter) at their default threshold 0.5, the published
@@ -81,8 +84,9 @@ Effects and bootstrap
 - E1 Paired effects: `diff` columns are arm minus the clean row of the same unit; `ref` columns
   (during and after the fault) are the arm minus the clean arm over the same minutes; time to
   re-converge is already paired.
-- E2 Invalid rule: a (controller, patient, seed, slot) with any invalid arm is dropped for every
-  arm of that slot; counts by controller, slot and arm.
+- E2 Invalid rule (D11): a (patient, seed, slot) with any invalid arm, in any controller, is
+  dropped for every arm of every controller, so the controllers keep the same events; counts by
+  controller, slot and arm, with the rows dropped because another controller triggered.
 - E3 One joint bootstrap: paper 1's `bootstrap_ci` resampling is recorded once per (patients,
   n_boot, seed) as a replicate x patient count matrix and reused for every quantity, so all
   estimates of an analysis share each replicate's index. In a replicate, patients without a value
@@ -152,10 +156,12 @@ Secondary (each labelled, uncorrected, 95% CIs from the secondary bootstrap)
   oref1_smb's false highs (drift high typical and severe, gain high, interference small and
   large) and spikes.
 - S10 Person-year harm per controller on risk-weighted minutes and minutes below 54, below 70 and
-  above 180. Central: compression 0.321 per day, short gaps 2.0, frozen 1.0, spikes 1.0, drift 1
-  + 1 windows. Low and high: compression 0.03 and 0.33, long gaps (arm 4) 0.13 and 0.24 in place
-  of short gaps, the rest at paper 1's rates. The additivity check (§7) is a harness run of
-  continuous 7-day trunks, outside the arm table, and is not part of this package.
+  above 180. Central: compression on 0.86 of nights (paper 1's rate, as C1 and the gate use),
+  short gaps 2.0, frozen 1.0, spikes 1.0, drift 1 + 1 windows. Low and high: compression on
+  0.86 x 0.03 / 0.321 = 0.080 and 0.86 x 0.33 / 0.321 = 0.884 of nights, long gaps (arm 4) 0.13
+  and 0.24 in place of short gaps, the rest at paper 1's rates. Each fault's term is reported
+  beside the total (D11). The additivity check (D8) runs continuous 7-day pairs
+  (experiments/additivity.py) and is analysed by `secondary.additivity` (BENCHMARK §8.5).
 
 Figures and entry point
 - F1 Colours: slots 1-3 of the dataviz reference palette, one per controller, validated on all
@@ -182,11 +188,11 @@ Figures and entry point
 
 ## 4. Points in the memo to raise
 
-- M1 Two compression rates are called paper 1's: C1 and the gate use 0.86 per night [Reddy 2026],
-  the person-year harm (Q7) uses 0.321 per day [Lobo 2026] as paper 1's central rate. The code
-  follows each section as written; the memo should say why they differ or pick one.
-- M2 The three-way rule has no category for a meaningful benefit (a significant estimate at or
-  below -SESOI): it reads "inconclusive". Implausible for H1 and H2, but the label would mislead.
+- M1 Resolved in the protocol: Q7, C1 and the gate all use compression on 0.86 of nights; the
+  published per-day rates enter only the low and high scenarios, mapped through 0.321 per day
+  (BENCHMARK §4.15).
+- M2 Resolved in the protocol: the four-way rule adds "opposite direction" (BENCHMARK §4.3),
+  as `hypotheses.py` implements.
 - M3 C1 sensitivity analysis 3 names a range (0.13 to 0.24 gaps per day), not a rate: run at both
   ends.
 - M4 Shares "from patient-level sums" are not comparable across faults when a patient is missing

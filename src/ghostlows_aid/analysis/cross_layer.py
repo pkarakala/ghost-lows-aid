@@ -145,6 +145,31 @@ def _ci(draws: np.ndarray) -> tuple[float, float]:
     return float(lo[0]), float(hi[0])
 
 
+def insulin_layer(effects: pd.DataFrame, boot: ef.Bootstrap) -> tuple[np.ndarray, np.ndarray]:
+    """(per-day harm of the five main faults, replicates) in C1's insulin layer."""
+    spec, theta = specs()[0], _Theta(effects, boot)
+    controller, outcome = spec.layers["insulin"]
+    est, draws = np.zeros(len(spec.faults)), np.zeros((boot.n_boot, len(spec.faults)))
+    for k, arms in enumerate(spec.faults.values()):
+        for arm, rate in arms.items():
+            t, d, _ = theta(controller, arm, outcome)
+            est[k] += rate * t
+            draws[:, k] += rate * d
+    return est, draws
+
+
+def ranking_tau_b(effects_a: pd.DataFrame, effects_b: pd.DataFrame, boot: ef.Bootstrap) -> dict:
+    """BENCHMARK §8.1: Kendall's tau-b between two analyses' insulin-layer rankings of the five
+    faults (S1 against the primary), with its 95% CI on one shared replicate index."""
+    ea, da = insulin_layer(effects_a, boot)
+    eb, db = insulin_layer(effects_b, boot)
+    r = TIE_DECIMALS
+    tau = float(kendall_tau_b(np.round(ea, r), np.round(eb, r)))
+    lo, hi = _ci(kendall_tau_b(np.round(da, r), np.round(db, r)))
+    return {"analysis": "s1_vs_primary_insulin_layer", "tau_b": tau, "tau_b_lo": lo,
+            "tau_b_hi": hi, "n_boot": boot.n_boot}  # fmt: skip
+
+
 def run(
     effects: pd.DataFrame, boot: ef.Bootstrap, analyses: Sequence[Spec] | None = None
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -235,7 +260,9 @@ __all__ = [
     "S_MODERATE",
     "TIE_DECIMALS",
     "Spec",
+    "insulin_layer",
     "kendall_tau_b",
+    "ranking_tau_b",
     "run",
     "specs",
 ]

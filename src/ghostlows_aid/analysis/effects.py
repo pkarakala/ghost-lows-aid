@@ -37,16 +37,28 @@ BY_ARM = ("controller", "slot", "arm")
 
 
 def apply_invalid_rule(table: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Drop every arm of a (controller, patient, seed, slot) in which any arm is invalid.
+    """D11 (BENCHMARK §2.6): an invalid arm drops every arm of its (patient, seed, slot), for all
+    three controllers, so the controllers keep the same events.
 
-    Returns (kept rows, counts per controller, slot and arm: rows, invalid arms, dropped rows).
-    Dropped clean rows count the dropped units. Trunks differ by controller, so the rule acts
-    within a controller."""
-    bad = table.groupby(list(UNIT_KEYS))["invalid"].transform("any").to_numpy(bool)
+    Returns (kept rows, counts per controller, slot and arm: rows, invalid arms (the triggering
+    arms of that controller), dropped rows, and the dropped rows whose own controller had no
+    invalid arm in that slot, i.e. dropped because another controller triggered)."""
+    keys = ["patient_id", "seed", "slot"]
+    bad = table.groupby(keys)["invalid"].transform("any").to_numpy(bool)
+    own = table.groupby(list(UNIT_KEYS))["invalid"].transform("any").to_numpy(bool)
     counts = (
-        table.assign(_invalid=table["invalid"].astype(int), _dropped=bad.astype(int))
+        table.assign(
+            _invalid=table["invalid"].astype(int),
+            _dropped=bad.astype(int),
+            _other=(bad & ~own).astype(int),
+        )
         .groupby(["controller", "slot", "arm"], sort=True)
-        .agg(rows=("arm", "size"), invalid_arms=("_invalid", "sum"), dropped=("_dropped", "sum"))
+        .agg(
+            rows=("arm", "size"),
+            invalid_arms=("_invalid", "sum"),
+            dropped=("_dropped", "sum"),
+            dropped_by_other_controller=("_other", "sum"),
+        )
         .reset_index()
     )
     return table[~bad].reset_index(drop=True), counts

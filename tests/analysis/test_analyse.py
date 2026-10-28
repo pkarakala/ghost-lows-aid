@@ -38,6 +38,13 @@ def test_synthetic_run_writes_tables_summary_and_figures(tmp_path):
     assert list(h["id"]) == ["H1", "H2"] and h["decision"].notna().all()
     for name in ("c1_summary", "c1_per_fault", "effects_summary", "gate_optima", "person_year"):
         assert len(pd.read_csv(out / f"{name}.csv")), name
+    assert "standard scenario mix was not run" in summary and "in-sample, descriptive" in summary
+    assert (pd.read_csv(out / "gate_optima.csv")["label"] == "in-sample, descriptive").all()
+    assert len(pd.read_csv(out / "correcting_person.csv"))
+    es = pd.read_csv(out / "effects_summary.csv")
+    rc = es[es["outcome"] == "reconverge_min"]
+    assert len(rc) and rc["reconverged_share"].notna().all()
+    assert es.loc[es["outcome"] != "reconverge_min", "reconverged_share"].isna().all()
     figs = {p.name for p in (out / "figures").iterdir()}
     for stem in ("forest_risk_weighted_min", "c1_layers_main", "pathway_risk_weighted_min"):
         assert {f"{stem}.png", f"{stem}.svg"} <= figs

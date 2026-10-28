@@ -90,6 +90,7 @@ PATHWAY_BASES = ("pisa_typical", "interference_large")
 WAKE_Q = (0.0, 0.25, 0.5, 0.75, 1.0)  # memo §10 Q3
 
 NO_GATE = "no_gate"
+GATE_LABEL = "in-sample, descriptive"  # BENCHMARK §4.11: neither optimum is a recommendation
 GATE_OPTIONS = (NO_GATE, *GATE_SETTINGS)  # memo §10 N10: the five candidate settings
 GATE_DELTA = 0.0  # paper 1's pre-registered D5 margin (ghostlows.bench.pipeline, delta = 0)
 
@@ -698,12 +699,26 @@ def person_year(effects: pd.DataFrame, boot: ef.Bootstrap, outcomes=PY_OUTCOMES)
                         (est["theta"].iloc[k], draws[:, k]) if k is not None else (np.nan, np.nan)
                     )
                     total, reps = total + r * t, reps + r * d
+                    lo, hi = _ci(DAYS_PER_YEAR * r * np.broadcast_to(d, (boot.n_boot,)))
+                    rows.append(  # D11: each fault's term beside the total
+                        {
+                            "controller": c,
+                            "scenario": name,
+                            "outcome": o,
+                            "arm": a,
+                            "per_person_year": DAYS_PER_YEAR * r * t,
+                            "ci_lo": lo,
+                            "ci_hi": hi,
+                            "rates_per_day": f"{a} {r:g}",
+                        }  # fmt: skip
+                    )
                 lo, hi = _ci(DAYS_PER_YEAR * np.broadcast_to(reps, (boot.n_boot,)))
                 rows.append(
                     {
                         "controller": c,
                         "scenario": name,
                         "outcome": o,
+                        "arm": "total",
                         "per_person_year": DAYS_PER_YEAR * total,
                         "ci_lo": lo,
                         "ci_hi": hi,
@@ -714,6 +729,69 @@ def person_year(effects: pd.DataFrame, boot: ef.Bootstrap, outcomes=PY_OUTCOMES)
 
 
 # ---------------------------------------------------------------- all
+
+
+# ---------------------------------------------------------------- N7 correcting person
+
+CORRECTING_OUTCOMES = (HARM, "minutes_below_54", "minutes_below_70", "minutes_above_180",
+                       "insulin_correction_u", "correction_boluses")  # fmt: skip
+CORRECTING_ARMS = ("interference_large+correcting", "clean+correcting")
+DID_NOT_ACT = "the correcting-person rule did not act"
+
+
+def correcting_person(
+    effects: pd.DataFrame, table: pd.DataFrame, boot: ef.Bootstrap, outcomes=CORRECTING_OUTCOMES
+) -> pd.DataFrame:
+    """BENCHMARK §4.13: tau(interference_large+correcting) - tau(clean+correcting) event by event
+    on the dose slot, beside the default person's theta(interference_large) and
+    theta(clean+correcting) alone; and per correcting arm the share of events with at least one
+    correction bolus (patient mean of the indicator, then the mean over patients). If that share
+    is 0 for every patient, the contrast's `reading` says the rule did not act."""
+    cols = _present(effects, outcomes)
+    c = PRIMARY_CONTROLLER
+    w = {CORRECTING_ARMS[0]: 1.0, CORRECTING_ARMS[1]: -1.0}
+    e = effects[effects["controller"] == c]
+    frames = [
+        combine(effects, w, cols, "correcting_interference_effect", c),
+        e[e["arm"].isin(["interference_large", CORRECTING_ARMS[1]])],
+    ]
+    out = _estimate(frames, cols, boot)
+    out["reading"] = ""
+    acted = False
+    t = table[(table["controller"] == c) & table["arm"].isin(CORRECTING_ARMS)]
+    shares = []
+    for arm in CORRECTING_ARMS:
+        x = t[t["arm"] == arm]
+        if x.empty or "correction_boluses" not in x:
+            continue
+        per = (x["correction_boluses"].astype(float) > 0).groupby(x["patient_id"]).mean()
+        acted |= bool((per > 0).any())
+        est, reps = boot.means(boot.align(per.to_frame()))
+        lo, hi = ef.percentile_ci(reps)
+        shares.append({"controller": c, "slot": "dose", "arm": arm,
+                       "outcome": "share_with_correction", "theta": est[0], "ci_lo": lo[0],
+                       "ci_hi": hi[0], "n_patients": int(per.size), "reading": ""})  # fmt: skip
+    if shares and not acted:
+        out.loc[out["arm"] == "correcting_interference_effect", "reading"] = DID_NOT_ACT
+    return pd.concat([out, pd.DataFrame(shares)], ignore_index=True)
+
+
+def reconverged_share(effects: pd.DataFrame, boot: ef.Bootstrap) -> pd.DataFrame:
+    """BENCHMARK §7: per controller and arm, the share of events that re-converged inside the
+    window (patient mean of `reconverged`, then the mean over patients, 95% CI), reported beside
+    `reconverge_min`, which is summarised over the re-converged events only."""
+    if "reconverged" not in effects:
+        return pd.DataFrame(columns=[*ef.BY_ARM, "reconverged_share", "reconverged_lo",
+                                     "reconverged_hi"])  # fmt: skip
+    e = effects[effects["arm"] != CLEAN].dropna(subset=["reconverged"])
+    rows = []
+    for key, x in e.groupby(list(ef.BY_ARM)):
+        per = x["reconverged"].astype(float).groupby(x["patient_id"]).mean()
+        est, reps = boot.means(boot.align(per.to_frame()))
+        lo, hi = ef.percentile_ci(reps)
+        rows.append({**dict(zip(ef.BY_ARM, key, strict=True)), "reconverged_share": est[0],
+                     "reconverged_lo": lo[0], "reconverged_hi": hi[0]})  # fmt: skip
+    return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------------- D8 additivity
@@ -728,6 +806,7 @@ ADDITIVITY_ARMS = {
 }
 DRIFT_ARMS = {-1.0: "drift_low", 1.0: "drift_high"}  # #10, #12
 DRIFT_WINDOWS_PER_DAY = 2  # D8: a day holds two 12-h windows of a continuous drift
+R_MARGIN = 0.5  # BENCHMARK §8.5: R's CI must lie inside (-0.5, +0.5)
 ADDITIVITY_OUTCOMES = (HARM, "minutes_below_54", "minutes_below_70", "minutes_above_180")
 
 
@@ -739,8 +818,9 @@ def read_additivity(records: Sequence[Mapping]) -> tuple[pd.DataFrame, pd.DataFr
     for r in records:
         pid = r["patient"] if str(r["patient"]).startswith("sim:") else f"sim:{r['patient']}"
         for run in ("clean", "faulted"):
+            valid = bool(r.get(run, {}).get("valid", True))
             for d in r.get(run, {}).get("days", []):
-                daily.append({"patient_id": pid, "run": run, **d})
+                daily.append({"patient_id": pid, "run": run, "valid": valid, **d})
         events += [{"patient_id": pid, **e} for e in r["events"]]
     return pd.DataFrame(daily), pd.DataFrame(events)
 
@@ -783,18 +863,55 @@ def additivity(
         eff = arm_effect(arm).reindex(patients).to_numpy(float)
         term = np.where(share > 0, DRIFT_WINDOWS_PER_DAY * share * eff, 0.0)  # no drift: no term
         pred = pred + term
-    rows = []
+    # BENCHMARK §8.5: a patient with an invalid run, or lacking an arm effect its events need,
+    # is left out of every quantity, and the counts are reported
+    bad = set(daily.loc[~daily.get("valid", pd.Series(True, index=daily.index)).astype(bool),
+                        "patient_id"])  # fmt: skip
+    invalid = obs.index.isin(list(bad))
+    no_effect = ~invalid & pred.isna().any(axis=1).to_numpy()
+    keep = ~invalid & ~no_effect
+    obs, pred = obs[keep], pred[keep]
+    rows, reps_of = [], {}
     for name, frame in (("observed", obs), ("predicted", pred), ("difference", obs - pred)):
         est, reps = boot.means(boot.align(frame[outcomes]))
+        reps_of[name] = (est, reps)
         lo, hi = ef.percentile_ci(reps)
         n = np.isfinite(boot.align(frame[outcomes])).sum(0)
         for j, o in enumerate(outcomes):
             rows.append({"outcome": o, "quantity": name, "theta": est[j], "ci_lo": lo[j],
                          "ci_hi": hi[j], "n_patients": int(n[j])})  # fmt: skip
+    (eo, ro), (ed, rd) = reps_of["observed"], reps_of["difference"]
+    o_lo, o_hi = ef.percentile_ci(ro)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        er, rr = ed / eo, rd / ro
+    r_lo, r_hi = ef.percentile_ci(rr)
+    d_lo, d_hi = ef.percentile_ci(rd)
+    reading = {}
+    for j, o in enumerate(outcomes):
+        estimable = not (o_lo[j] <= 0 <= o_hi[j])  # R needs mean O away from 0
+        rows.append({"outcome": o, "quantity": "relative_departure",
+                     "theta": er[j] if estimable else np.nan,
+                     "ci_lo": r_lo[j] if estimable else np.nan,
+                     "ci_hi": r_hi[j] if estimable else np.nan,
+                     "n_patients": int(keep.sum())})  # fmt: skip
+        d_has_0 = bool(d_lo[j] <= 0 <= d_hi[j])
+        r_inside = estimable and bool(-R_MARGIN < r_lo[j] and r_hi[j] < R_MARGIN)
+        if d_has_0 and r_inside:
+            reading[o] = (True, "additive: the check did not detect a departure from additivity")
+        elif d_has_0:
+            reading[o] = (False, "too imprecise to detect a departure of half the observed harm"
+                          + ("" if estimable else " (R not estimable)"))  # fmt: skip
+        else:
+            reading[o] = (False, "not additive: the per-event effects do not add to the observed"
+                          " harm of a mixed-fault week")  # fmt: skip
     out = pd.DataFrame(rows)
-    diff = out["quantity"] == "difference"
     out["additive"] = pd.array([pd.NA] * len(out), dtype="boolean")
-    out.loc[diff, "additive"] = (out.loc[diff, "ci_lo"] <= 0) & (out.loc[diff, "ci_hi"] >= 0)
+    out["reading"] = ""
+    diff = out["quantity"] == "difference"
+    out.loc[diff, "additive"] = [reading[o][0] for o in out.loc[diff, "outcome"]]
+    out.loc[diff, "reading"] = [reading[o][1] for o in out.loc[diff, "outcome"]]
+    out["left_out_invalid"] = int(invalid.sum())
+    out["left_out_no_effect"] = int(no_effect.sum())
     return out
 
 
@@ -809,6 +926,8 @@ def run(effects: pd.DataFrame, table: pd.DataFrame, boot: ef.Bootstrap) -> dict[
     out["pathway"], out["wake_curve"] = pathway(effects, boot)
     out["mechanism"] = mechanism(effects, boot)
     out["gate_curves"], out["gate_optima"] = gate(effects, table, boot)
+    out["gate_optima"]["label"] = GATE_LABEL  # BENCHMARK §4.11
+    out["correcting_person"] = correcting_person(effects, table, boot)
     out["guards"] = guards(effects, boot)
     out["controllers"], out["smb_tb_split"] = controllers(effects, boot)
     out["person_year"] = person_year(effects, boot)
@@ -816,6 +935,8 @@ def run(effects: pd.DataFrame, table: pd.DataFrame, boot: ef.Bootstrap) -> dict[
 
 
 __all__ = [
+    "correcting_person",
+    "reconverged_share",
     "ADDITIVITY_ARMS",
     "additivity",
     "read_additivity",

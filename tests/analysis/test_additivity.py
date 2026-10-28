@@ -61,7 +61,7 @@ def test_additivity_recovers_an_additive_suite_and_flags_an_excess(extra):
     effects, records = synthetic_case(extra)
     daily, events = secondary.read_additivity(records)
     out = secondary.additivity(daily, events, effects, ef.Bootstrap(PATIENTS, n_boot=200))
-    assert len(out) == 3 * len(OUTCOMES)
+    assert len(out) == 4 * len(OUTCOMES)
     d = out[out["quantity"] == "difference"].set_index("outcome")
     assert d["n_patients"].eq(len(PATIENTS)).all()
     rest = [o for o in OUTCOMES if o != secondary.HARM]
@@ -91,9 +91,11 @@ def test_analyse_additivity_s1_and_s2(tmp_path):
     out = tmp_path / "s1"
     args = ["--input", str(grid), "--out", str(out), "--no-figures", "--n-boot", "50",
             "--n-boot-confirmatory", "50", "--additivity", str(folder)]  # fmt: skip
-    assert analyse.main(args) == 0
+    assert analyse.main([*args, "--primary-input", str(grid)]) == 0
+    tau = pd.read_csv(out / "s1_tau_b.csv").iloc[0]  # S1 against itself: the same ranking
+    assert tau["tau_b"] == pytest.approx(1.0)
     add = pd.read_csv(out / "additivity.csv")
-    assert len(add) == 3 * len(OUTCOMES) and add["n_patients"].max() == len(PATIENTS)
+    assert len(add) == 4 * len(OUTCOMES) and add["n_patients"].max() == len(PATIENTS)
     assert "D8 additivity" in (out / "summary.md").read_text()
     # S2: the patients outside acceptance are dropped before every estimate, and it says so
     out2 = tmp_path / "s2"
@@ -124,3 +126,28 @@ def test_additivity_script_bookkeeping():
     days = add.daily(fake)
     assert [d["minutes_below_54"] for d in days] == [0, 30, 0, 0, 0, 0]
     assert days[1]["rescue_g"] == 15.0 and days[0]["insulin_basal_u"] == pytest.approx(14.4)
+
+
+def test_relative_departure_and_left_out_patients():
+    effects, records = synthetic_case(extra=50.0)
+    records[0]["faulted"]["valid"] = False  # an invalid additivity run is left out
+    gone = effects["patient_id"] == records[1]["patient"]
+    effects = effects[~(gone & (effects["arm"] == "spike_typical"))]  # no effect for its spikes
+    daily, events = secondary.read_additivity(records)
+    out = secondary.additivity(daily, events, effects, ef.Bootstrap(PATIENTS, n_boot=300))
+    assert out["left_out_invalid"].iloc[0] == 1
+    spikes = sum(e["spike"] for e in records[1]["events"])
+    assert out["left_out_no_effect"].iloc[0] == (1 if spikes else 0)
+    r = out[out["quantity"] == "relative_departure"].set_index("outcome")
+    q = out.set_index(["quantity", "outcome"])["theta"]
+    h = secondary.HARM
+    assert r.loc[h, "theta"] == pytest.approx(q["difference", h] / q["observed", h])
+    assert r.loc[h, "ci_lo"] <= r.loc[h, "theta"] <= r.loc[h, "ci_hi"]
+    d = out[out["quantity"] == "difference"].set_index("outcome")
+    assert not d.loc[h, "additive"] and d.loc[h, "reading"].startswith("not additive")
+    # a zero difference with an imprecise R is not called additive
+    rest = [o for o in OUTCOMES if o != h]
+    for o in rest:
+        ok = d.loc[o, "additive"]
+        inside = -0.5 < r.loc[o, "ci_lo"] and r.loc[o, "ci_hi"] < 0.5
+        assert not ok or inside  # additive needs R's CI inside (-0.5, 0.5)

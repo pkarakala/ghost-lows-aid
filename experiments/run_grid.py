@@ -17,11 +17,14 @@ random 10% of the (patient, seed) pairs, for every controller (episodes.arm_trac
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import multiprocessing as mp
 import os
+import subprocess
 import time
 from collections import defaultdict
+from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
@@ -55,7 +58,7 @@ def write_atomic(path: Path, write) -> None:
 
 
 def run_job(job) -> str:
-    out, controller, patient, seed, k, n, max_tier, faults, isf_rule, isf_scale = job
+    out, controller, patient, seed, k, n, max_tier, faults, isf_rule, isf_scale, prov = job
     name = f"{controller}_{patient.replace('#', '')}_{seed}"
     marker = out / "units" / f"{name}.json"
     if marker.exists():
@@ -71,7 +74,7 @@ def run_job(job) -> str:
               "faults": faults, "isf_rule": isf_rule, "isf_scale": isf_scale,
               "max_tier": max_tier, "onsets": unit.onsets,
               "warmup_s": unit.warmup_seconds, "trunk_s": unit.trunk_seconds,
-              "arm_s": {}}  # fmt: skip
+              "arm_s": {}, **prov}  # fmt: skip
     s = unit.trunk.samples
     record["trunk_stages_ms"] = {
         c: {"median": float(s[c].median()), "p95": float(s[c].quantile(0.95))}
@@ -95,16 +98,87 @@ def run_job(job) -> str:
     return "done"
 
 
+FREEZE_TAG = "protocol-v1"
+REPO = Path(__file__).resolve().parents[1]
+MARKER_KEYS = ("faults", "isf_rule", "isf_scale", "max_tier", "k", "n")  # SIMULATION §15 item 3
+
+
+def _git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(REPO), *args], capture_output=True, text=True)
+
+
+def freeze_ok(frozen: str | None) -> tuple[bool, str]:
+    """SIMULATION §15 item 2: the --frozen file names the protocol-v1 tag, the tag exists, and the
+    code being run (HEAD) contains it."""
+    if not (frozen and Path(frozen).is_file()):
+        return False, "--faults needs --frozen <the DECISIONS.md that records the freeze>"
+    if FREEZE_TAG not in Path(frozen).read_text():
+        return False, f"{frozen} does not record the {FREEZE_TAG} tag"
+    if _git("rev-parse", "--verify", "--quiet", f"refs/tags/{FREEZE_TAG}^{{commit}}").returncode:
+        return False, f"tag {FREEZE_TAG} does not exist"
+    if _git("merge-base", "--is-ancestor", f"refs/tags/{FREEZE_TAG}", "HEAD").returncode:
+        return False, f"HEAD does not contain tag {FREEZE_TAG}"
+    return True, ""
+
+
+def provenance(scale_map: str | None) -> dict:
+    """What each unit marker records: the harness commit, package versions, the scale map."""
+    oref0 = json.loads((REPO / "node/node_modules/oref0/package.json").read_text())["version"]
+    out = {
+        "harness_commit": _git("rev-parse", "HEAD").stdout.strip(),
+        "harness_dirty": bool(_git("status", "--porcelain", "--untracked-files=no").stdout),
+        "versions": {
+            "ghostlows": version("ghostlows"),
+            "simglucose": version("simglucose"),
+            "oref0": oref0,
+        },  # fmt: skip
+        "isf_scale_map": scale_map,
+        "isf_scale_map_sha256": None,
+    }
+    if scale_map:
+        out["isf_scale_map_sha256"] = hashlib.sha256(Path(scale_map).read_bytes()).hexdigest()
+    return out
+
+
+def check_markers(jobs) -> None:
+    """SIMULATION §15 item 3: an existing marker must have been made by the same design."""
+    bad = []
+    for job in jobs:
+        out, controller, patient, seed = job[:4]
+        marker = out / "units" / f"{controller}_{patient.replace('#', '')}_{seed}.json"
+        if marker.exists():
+            rec = json.loads(marker.read_text())
+            want = dict(zip(MARKER_KEYS, (job[7], job[8], job[9], job[6], job[4], job[5]),
+                            strict=True))  # fmt: skip
+            diff = {k: (rec.get(k), v) for k, v in want.items() if rec.get(k) != v}
+            if diff:
+                bad.append(f"{marker.name}: {diff}")
+    if bad:
+        raise SystemExit("existing unit markers differ from this command:\n" + "\n".join(bad))
+
+
 def run(a) -> None:
-    if a.faults and not (a.frozen and Path(a.frozen).is_file()):
-        raise SystemExit("--faults needs --frozen <the DECISIONS.md that records the freeze>")
+    if a.faults:
+        ok, why = freeze_ok(a.frozen)
+        if not ok:
+            raise SystemExit(why)
     seeds = a.seeds or [MAIN_SEED0 + k for k in range(a.n)]
     scales = json.loads(Path(a.isf_scale_map).read_text())["isf_scale"] if a.isf_scale_map else {}
+    missing = [p for p in a.patients if a.isf_scale_map and p not in scales]
+    if missing:  # SIMULATION §15 item 5
+        raise SystemExit(f"patients missing from {a.isf_scale_map}: {missing}")
+    prov = provenance(a.isf_scale_map)
     jobs = [
         (a.out, c, p, s, seeds.index(s) if not a.seeds else a.k, a.n, a.max_tier, a.faults,
-         a.isf_rule, scales.get(p, 1.0))
+         a.isf_rule, float(scales.get(p, 1.0)), prov)
         for s in seeds for p in a.patients for c in a.controllers
     ]  # fmt: skip
+    check_markers(jobs)
+    a.out.mkdir(parents=True, exist_ok=True)  # SIMULATION §15 item 4: the trace sample, first
+    sample = [(p, s) for p in a.patients for s in seeds if keeps_traces(p, s)]
+    pd.DataFrame(sample, columns=["patient", "seed"]).to_csv(
+        a.out / "trace_sample.csv", index=False
+    )
     t = time.perf_counter()
     if a.workers == 1:
         done = [run_job(j) for j in jobs]

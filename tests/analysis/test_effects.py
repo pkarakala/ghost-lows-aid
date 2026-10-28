@@ -169,3 +169,19 @@ def test_contrasts_between_arms_and_controllers():
     k = ef.controller_contrast(e, "oref1_smb", "oref0_tb", ["risk_weighted_min"])
     k = k[k["arm"] == "pisa_typical"]
     assert len(k) == 30 * 4 and np.allclose(k["risk_weighted_min"], 15.0)
+
+
+def test_invalid_rule_drops_the_slot_for_every_controller():
+    """D11: an invalid oref0_tb arm drops that (patient, seed, slot) for open_loop too."""
+    p, seed = "sim:child#003", 102
+    d = small(controllers=("oref0_tb", "open_loop"),
+              invalid={("oref0_tb", p, seed, "night", "pisa_typical"): True})  # fmt: skip
+    table = synthetic_outcomes(d)
+    kept, counts = ef.apply_invalid_rule(table)
+    cell = (table["patient_id"] == p) & (table["seed"] == seed) & (table["slot"] == "night")
+    assert set(table.loc[cell, "controller"]) == {"oref0_tb", "open_loop"}
+    assert len(kept) == len(table) - int(cell.sum())
+    ol = counts[(counts["controller"] == "open_loop") & (counts["arm"] == "pisa_typical")].iloc[0]
+    assert ol["invalid_arms"] == 0 and ol["dropped"] == 1 and ol["dropped_by_other_controller"] == 1
+    tb = counts[(counts["controller"] == "oref0_tb") & (counts["arm"] == "pisa_typical")].iloc[0]
+    assert tb["invalid_arms"] == 1 and tb["dropped_by_other_controller"] == 0

@@ -44,10 +44,24 @@ GLYC = ("minutes_below_54", "minutes_below_70", "minutes_above_180", "minutes_ab
         "risk_weighted_min")  # fmt: skip
 
 
-def schedule(patient: str):
+def schedule(patient: str, seed: int = SEED, days: int = DAYS):
     from ghostlows_aid.faults_online import FaultSchedule
 
-    return FaultSchedule.for_run(SEED, (f"sim:{patient}", SEED, MIX), DAYS, CONFIG)
+    return FaultSchedule.for_run(seed, (f"sim:{patient}", seed, MIX), days, CONFIG)
+
+
+def run_pair(patient: str, scale: float, faulted: bool, seed: int = SEED, days: int = DAYS):
+    """The clean run and (if `faulted`) the run with the mixed suite: {name: LoopResult}."""
+    from ghostlows_aid.loop import LoopConfig, make_loop
+    from ghostlows_aid.profile import ProfileSettings
+
+    settings = ProfileSettings(isf_rule="rule1800", isf_scale=scale)
+    config = LoopConfig(patient, controller="oref0_tb", profile=settings)
+    runs = {"clean": None, "faulted": schedule(patient, seed, days)} if faulted else {"clean": None}
+    return {
+        name: make_loop(config, seed, days, mix=DEFAULT, faults=f).run().result()
+        for name, f in runs.items()
+    }
 
 
 def daily(result) -> list[dict]:
@@ -92,22 +106,15 @@ def events_per_day(sch) -> list[dict]:
 
 
 def run_one(job) -> str:
-    from ghostlows_aid.loop import LoopConfig, make_loop
-    from ghostlows_aid.profile import ProfileSettings
-
     out, patient, scale, faulted = job
     path = out / f"{patient.replace('#', '')}.json"
     if path.exists():
         return "skip"
     t = time.perf_counter()
-    settings = ProfileSettings(isf_rule="rule1800", isf_scale=scale)
-    config = LoopConfig(patient, controller="oref0_tb", profile=settings)
     sch = schedule(patient)
     record = {"patient": patient, "seed": SEED, "isf_scale": scale, "config": "pisa_fraction=0.86,"
               " severity=0.5", "events": events_per_day(sch)}  # fmt: skip
-    runs = {"clean": None, "faulted": sch} if faulted else {"clean": None}
-    for name, faults in runs.items():
-        r = make_loop(config, SEED, DAYS, mix=DEFAULT, faults=faults).run().result()
+    for name, r in run_pair(patient, scale, faulted).items():
         record[name] = {"valid": bool(r.valid), "errors": int(r.controller_errors),
                         "days": daily(r)}  # fmt: skip
     record["seconds"] = time.perf_counter() - t
@@ -131,9 +138,12 @@ def main(argv=None) -> None:
     if faulted and not (a.frozen and Path(a.frozen).is_file()):
         raise SystemExit("faulted runs need --frozen <the DECISIONS.md that records the freeze>")
     scales = json.loads(a.scale_map.read_text())["isf_scale"]
+    missing = [x for x in a.patients if x not in scales]
+    if missing:
+        raise SystemExit(f"patients missing from {a.scale_map}: {missing}")
     out = a.out / ("clean_only" if a.clean_only else "")
     out.mkdir(parents=True, exist_ok=True)
-    jobs = [(out, p, float(scales.get(p, 1.0)), faulted) for p in a.patients]
+    jobs = [(out, p, float(scales[p]), faulted) for p in a.patients]
     if a.workers == 1:
         done = [run_one(j) for j in jobs]
     else:

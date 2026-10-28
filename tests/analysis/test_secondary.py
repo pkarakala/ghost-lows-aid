@@ -101,14 +101,19 @@ def test_controller_contrast_and_person_year(exact):
     py = se.person_year(e, boot)
     central = 0.86 * 10 + 2 * 1 + 1 * 2 + 1 * 3 + 1 * 4 + 1 * 5
     low = 0.86 * 0.03 / 0.321 * 10 + 0.13 * 6 + 2 + 3 + 4 + 5
-    r = row(py, controller="oref0_tb", scenario="central", outcome=H)
+    r = row(py, controller="oref0_tb", scenario="central", outcome=H, arm="total")
     assert r["per_person_year"] == pytest.approx(365 * central)
-    assert row(py, controller="oref0_tb", scenario="low", outcome=H)[
+    assert row(py, controller="oref0_tb", scenario="low", outcome=H, arm="total")[
         "per_person_year"
     ] == pytest.approx(365 * low)
-    assert row(py, controller="oref1_smb", scenario="central", outcome=H)[
+    assert row(py, controller="oref1_smb", scenario="central", outcome=H, arm="total")[
         "per_person_year"
     ] == pytest.approx(3 * 365 * central)
+    # D11: each fault's term is reported, and the terms add to the total
+    terms = py[(py["controller"] == "oref0_tb") & (py["scenario"] == "central")
+               & (py["outcome"] == H) & (py["arm"] != "total")]  # fmt: skip
+    assert row(terms, arm="pisa_typical")["per_person_year"] == pytest.approx(365 * 0.86 * 10)
+    assert terms["per_person_year"].sum() == pytest.approx(365 * central)
 
 
 def test_pairing_efficiency(exact):
@@ -241,3 +246,33 @@ def test_run_all_on_the_full_design():
     out = se.run(e, kept, boot)
     assert all(isinstance(v, pd.DataFrame) for v in out.values())
     assert all(len(v) for k, v in out.items()), [k for k, v in out.items() if not len(v)]
+
+
+def test_correcting_person_contrast_share_and_did_not_act():
+    eff = {
+        ("oref0_tb", "interference_large+correcting", H): 12.0,
+        ("oref0_tb", "clean+correcting", H): 2.0,
+        ("oref0_tb", "interference_large", H): 9.0,
+    }
+    kept, e, boot = prepared(effects=eff, zero_noise_arms=True, controllers=("oref0_tb",))
+    out = se.correcting_person(e, kept, boot)
+    c = row(out, arm="correcting_interference_effect", outcome=H)
+    assert c["theta"] == pytest.approx(10.0)
+    assert row(out, arm="interference_large", outcome=H)["theta"] == pytest.approx(9.0)
+    shares = out[out["outcome"] == "share_with_correction"]
+    assert set(shares["arm"]) == set(se.CORRECTING_ARMS)
+    assert shares["theta"].between(0, 1).all()
+    none = kept.assign(correction_boluses=0.0)
+    out0 = se.correcting_person(e, none, boot)
+    assert row(out0, arm="correcting_interference_effect", outcome=H)["reading"] == se.DID_NOT_ACT
+    assert (out0.loc[out0["outcome"] == "share_with_correction", "theta"] == 0).all()
+
+
+def test_reconverged_share_and_s1_tau_b(exact):
+    from ghostlows_aid.analysis import cross_layer
+
+    _, e, boot = exact
+    share = se.reconverged_share(e, boot)
+    assert len(share) and np.allclose(share["reconverged_share"], 1.0)  # synthetic: all True
+    tau = cross_layer.ranking_tau_b(e, e, boot)  # the same ranking: tau-b 1 in every replicate
+    assert tau["tau_b"] == pytest.approx(1.0) and tau["tau_b_lo"] == pytest.approx(1.0)

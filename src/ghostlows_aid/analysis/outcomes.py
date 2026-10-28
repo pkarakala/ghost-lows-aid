@@ -211,9 +211,10 @@ def fault_windows(t: ArmTrace, clean: ArmTrace | None) -> dict:
             continue
         ins, high = _total_insulin(trace), trace.truth[trace.w] > HIGH_INPUT
         out[f"{prefix}insulin_during_u"] = float(ins[:d].sum())
-        out[f"{prefix}insulin_after_u"] = float(ins[d:].sum())
         out[f"{prefix}minutes_above_180_during"] = float(high[:d].sum())
-        out[f"{prefix}minutes_above_180_after"] = float(high[d:].sum())
+        if d < t.window_min:  # D9: a fault active at t0 + W is censored; nothing after it
+            out[f"{prefix}insulin_after_u"] = float(ins[d:].sum())
+            out[f"{prefix}minutes_above_180_after"] = float(high[d:].sum())
     return out
 
 
