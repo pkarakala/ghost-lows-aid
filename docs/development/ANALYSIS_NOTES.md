@@ -16,7 +16,7 @@ real simulation has been computed: every test and run uses synthetic data or cle
 | hypotheses.py (H1, H2, three-way rule, Holm) | done |
 | cross_layer.py (C1 and its sensitivity analyses) | done |
 | secondary.py | done |
-| figures.py, experiments/analyse.py | |
+| figures.py, experiments/analyse.py | done |
 
 ## 2. The input contract (ArmTrace) and the outcome table
 
@@ -153,6 +153,29 @@ Secondary (each labelled, uncorrected, 95% CIs from the secondary bootstrap)
   + 1 windows. Low and high: compression 0.03 and 0.33, long gaps (arm 4) 0.13 and 0.24 in place
   of short gaps, the rest at paper 1's rates. The additivity check (§7) is a harness run of
   continuous 7-day trunks, outside the arm table, and is not part of this package.
+
+Figures and entry point
+- F1 Colours: slots 1-3 of the dataviz reference palette, one per controller, validated on all
+  pairs against the white figure surface (worst CVD Delta E 9.2, normal vision 24.0); the aqua
+  slot's 2.8:1 contrast is relieved by marker shapes, a legend and the CSV behind every figure.
+  Single-series figures use slot 1. PNG at 200 dpi and SVG.
+- F2 Figures: forest plots of every fault arm by controller for risk-weighted minutes and minutes
+  above 180 and below 70; C1's main analysis, both layers with each fault's rank; the PISA typical
+  dose-response (oref0_tb, minutes above 180) with the mean per-patient slope drawn through the
+  centroid; the pathway 2x2 with its interaction; the gate curves (net effect per night, false
+  alarms per night, level 2 sensitivity) with the matched filter beside the four Baysal sets.
+- P1 Freeze guard: a row with a faulted arm and data_source other than synthetic needs
+  `--protocol-tag protocol-v1`; the tag must resolve to a commit of this repository that HEAD
+  contains (`git merge-base --is-ancestor`). Otherwise the run exits with status 2 before
+  anything is computed or written. A clean-only simulation table gets the descriptive tables
+  only (invalid counts, clean-arm levels). `--synthetic` alone generates the default design;
+  with `--input` it requires every row to be synthetic.
+- P2 Outputs: synthetic runs to results/synthetic/ (tables, summary.md, manifest.json,
+  figures/); simulation runs to results/analysis/ with figures in results/figures/; `--out`
+  overrides both (figures in <out>/figures). A full synthetic run (13,860 rows, 10,000 and
+  2,000 replicates) takes about 17 s.
+- P3 In this worktree run with `PYTHONPATH=src`: the venv's editable install points at the
+  harness worktree until the branches are merged.
 
 ## 4. Points in the memo to raise
 
