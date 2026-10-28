@@ -1,0 +1,13 @@
+{
+  "name": "ghostlows-aid-oref0-bridge",
+  "private": true,
+  "description": "Runs the unmodified OpenAPS oref0 library for Ghost Lows AID.",
+  "license": "MIT",
+  "dependencies": {
+    "oref0": "0.7.1"
+  },
+  "devDependencies": {
+    "mocha": "5.2.0",
+    "should": "13.2.3"
+  }
+}

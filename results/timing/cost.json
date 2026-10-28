@@ -1,0 +1,82 @@
+{
+  "per_controller": {
+    "open_loop": {
+      "units": 6,
+      "warmup_s": 0.638,
+      "trunk_s": 2.128,
+      "total_s": 9.37,
+      "s_per_patient_day": 0.762,
+      "arm_s": 0.407
+    },
+    "oref0_tb": {
+      "units": 6,
+      "warmup_s": 5.365,
+      "trunk_s": 19.997,
+      "total_s": 147.175,
+      "s_per_patient_day": 7.163,
+      "arm_s": 3.652
+    },
+    "oref1_smb": {
+      "units": 6,
+      "warmup_s": 5.779,
+      "trunk_s": 22.161,
+      "total_s": 92.201,
+      "s_per_patient_day": 7.938,
+      "arm_s": 4.122
+    }
+  },
+  "steps": [
+    {
+      "N": 20,
+      "arms": "full design",
+      "cpu_h": 41.39769379925038,
+      "fits": false
+    },
+    {
+      "N": 15,
+      "arms": "full design",
+      "cpu_h": 31.048270349437782,
+      "fits": false
+    },
+    {
+      "N": 10,
+      "arms": "full design",
+      "cpu_h": 20.69884689962519,
+      "fits": true
+    },
+    {
+      "N": 10,
+      "arms": "drop open_loop T3, oref0_tb T3, oref1_smb T3",
+      "cpu_h": 19.390252763500143,
+      "fits": true
+    },
+    {
+      "N": 10,
+      "arms": "drop open_loop T3, oref0_tb T3, oref1_smb T2, oref1_smb T3",
+      "cpu_h": 15.942927037875126,
+      "fits": true
+    },
+    {
+      "N": 10,
+      "arms": "drop open_loop T2, open_loop T3, oref0_tb T3, oref1_smb T2, oref1_smb T3",
+      "cpu_h": 15.608576048250178,
+      "fits": true
+    }
+  ],
+  "trunk_s": {
+    "open_loop": 2.128148180499693,
+    "oref0_tb": 19.997142194500157,
+    "oref1_smb": 22.16127020350018
+  },
+  "arm_s_median": {
+    "open_loop": 0.40721275150008296,
+    "oref0_tb": 3.6520089207500632,
+    "oref1_smb": 4.122300048999705
+  },
+  "chosen": {
+    "N": 10,
+    "arms": "full design",
+    "cpu_h": 20.69884689962519,
+    "fits": true
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "reading": "failing patients only: each patient failing the acceptance criteria under rule1800 at scale 1.0 gets the smallest scale in {0.8, 1.0, 1.25, 1.5} that meets them; every other patient keeps 1.0; a failing patient with no passing scale keeps 1.0 and stays in the cohort",
+  "decided": "2026-10-28 (DECISIONS.md D17, before protocol-v1)",
+  "isf_rule": "rule1800",
+  "source": "results/calibration/per_patient.csv (seeds 90001-90003, oref0_tb)",
+  "changed_from_1": {
+    "adult#002": 1.25,
+    "adult#009": 1.5,
+    "child#001": 1.25,
+    "child#004": 1.25
+  },
+  "outside_acceptance": [
+    "adolescent#002",
+    "adolescent#007",
+    "child#002",
+    "child#003",
+    "child#008"
+  ],
+  "isf_scale": {
+    "adolescent#001": 1.0,
+    "adolescent#002": 1.0,
+    "adolescent#003": 1.0,
+    "adolescent#004": 1.0,
+    "adolescent#005": 1.0,
+    "adolescent#006": 1.0,
+    "adolescent#007": 1.0,
+    "adolescent#008": 1.0,
+    "adolescent#009": 1.0,
+    "adolescent#010": 1.0,
+    "adult#001": 1.0,
+    "adult#002": 1.25,
+    "adult#003": 1.0,
+    "adult#004": 1.0,
+    "adult#005": 1.0,
+    "adult#006": 1.0,
+    "adult#007": 1.0,
+    "adult#008": 1.0,
+    "adult#009": 1.5,
+    "adult#010": 1.0,
+    "child#001": 1.25,
+    "child#002": 1.0,
+    "child#003": 1.0,
+    "child#004": 1.25,
+    "child#005": 1.0,
+    "child#006": 1.0,
+    "child#007": 1.0,
+    "child#008": 1.0,
+    "child#009": 1.0,
+    "child#010": 1.0
+  }
+}

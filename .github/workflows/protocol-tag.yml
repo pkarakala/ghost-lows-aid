@@ -1,0 +1,42 @@
+name: Protocol tag
+
+# Freezes the protocol: creates an annotated tag such as protocol-v1 at main's head and publishes a
+# GitHub Release for it. Runs by hand on main only (this repository's agents cannot push tags).
+# Refuses a tag that already exists, because a protocol tag never moves (AGENTS.md rule 11), and a
+# tag that docs/reference/DECISIONS.md does not name.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Protocol tag, for example protocol-v1"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check the tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$TAG" =~ ^protocol-v[0-9]+$ ]] || { echo "not a protocol tag: $TAG"; exit 1; }
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then echo "$TAG exists; tags never move"; exit 1; fi
+          grep -q "$TAG" docs/reference/DECISIONS.md || { echo "DECISIONS.md does not name $TAG"; exit 1; }
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Create the tag and its release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG: protocol frozen before any faulted arm was simulated" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" --title "$TAG" --verify-tag \
+            --notes "Protocol, harness and analysis code frozen before any faulted arm was simulated. Decisions and amendments: docs/reference/DECISIONS.md."
