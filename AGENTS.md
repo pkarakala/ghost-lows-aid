@@ -36,6 +36,7 @@ The layout fills in as the protocol and code land.
   [docs/development/ANALYSIS_NOTES.md](docs/development/ANALYSIS_NOTES.md)).
 - [experiments/](experiments/): `acceptance_adult001.py`; `calibrate.py` settings selection;
   `analyse.py` the analysis of outcome tables;
+  `additivity.py` D8's additivity runs (7-day clean and mixed-suite pairs, seed 200);
   `levers.py` history and lib/meal levers; `run_grid.py` the grid (timing mode, resumable units,
   the analysis package's ArmTrace contract). Outputs go to results/<name>/ (gitignored).
 - [tests/](tests/): fast by default; `-m slow` runs the multi-day loops.
@@ -51,6 +52,11 @@ The layout fills in as the protocol and code land.
 - `uv run python experiments/run_grid.py run --isf-rule rule1800 --seeds 90001 --patients ...`,
   then `... cost`: timing mode and the §7 projection. `--faults --frozen <DECISIONS.md>` runs
   the faulted arms and is for after the freeze only.
+- `uv run python experiments/additivity.py run --frozen <DECISIONS.md>`: D8's paired 7-day
+  runs (results/additivity/); `--clean-only` runs the clean half, allowed before the freeze.
+- `uv run python experiments/analyse.py --input results/grid ... --additivity results/additivity`
+  adds the D8 table; `--exclude-outside-acceptance` is S2; S1 is `--input results/grid_s1
+  --out results/analysis_s1`.
 
 ## Hard rules
 

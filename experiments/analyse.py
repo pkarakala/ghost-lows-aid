@@ -99,6 +99,22 @@ def clean_levels(table: pd.DataFrame, boot: ef.Bootstrap) -> pd.DataFrame:
     return ef.estimate(clean, cols, ef.BY_ARM, boot)
 
 
+SCALE_MAP = REPO / "results/calibration/isf_scale_map.json"  # D17
+
+
+def outside_acceptance(path: Path) -> set[str]:
+    """The D17 map's patients outside the acceptance criteria, in the table's `sim:` form."""
+    names = json.loads(path.read_text())["outside_acceptance"]
+    return {n if n.startswith("sim:") else f"sim:{n}" for n in names}
+
+
+def read_additivity_records(folder: Path, excluded: list[str]) -> list[dict]:
+    """experiments/additivity.py's per-patient records, without the excluded patients."""
+    records = [json.loads(p.read_text()) for p in sorted(folder.glob("*.json"))]
+    drop = set(excluded)
+    return [r for r in records if f"sim:{r['patient']}".replace("sim:sim:", "sim:") not in drop]
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--input", nargs="*", default=[], help="parquet files or directories")
@@ -110,6 +126,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--n-boot-confirmatory", type=int, default=ef.N_BOOT_CONFIRMATORY)
     ap.add_argument("--boot-seed", type=int, default=ef.BOOT_SEED)
     ap.add_argument("--no-figures", action="store_true")
+    ap.add_argument("--additivity", default=None, help="additivity.py output folder (D8)")
+    ap.add_argument(
+        "--exclude-outside-acceptance",
+        nargs="?",
+        const=str(SCALE_MAP),
+        default=None,
+        help="S2 (D18): drop the map's outside_acceptance patients before every estimate",
+    )
     args = ap.parse_args(argv)
     t_start = time.perf_counter()
 
@@ -120,6 +144,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         ap.error("give --input, or --synthetic to generate synthetic data")
     table = schema.validate(schema.coerce(table))
+    excluded: list[str] = []
+    if args.exclude_outside_acceptance:
+        excluded = sorted(outside_acceptance(Path(args.exclude_outside_acceptance)))
+        table = table[~table["patient_id"].isin(excluded)].reset_index(drop=True)
     sources = set(table["data_source"].unique())
     if args.synthetic and sources != {"synthetic"}:
         raise Refused("--synthetic given but the input holds rows not marked synthetic")
@@ -146,6 +174,14 @@ def main(argv: list[str] | None = None) -> int:
         results["hypotheses"], results["hypotheses_co_reported"] = hypotheses.run(effects, boot_c)
         results["c1_per_fault"], results["c1_summary"] = cross_layer.run(effects, boot_c)
         results.update(secondary.run(effects, kept, boot))
+        if args.additivity:
+            records = read_additivity_records(Path(args.additivity), excluded)
+            if any(not r.get("synthetic") and "faulted" in r for r in records):
+                ok, why = protocol_tag_ok(args.protocol_tag)
+                if not ok:
+                    raise Refused(why)
+            daily, events = secondary.read_additivity(records)
+            results["additivity"] = secondary.additivity(daily, events, effects, boot)
     for name, df in results.items():
         df.to_csv(out / f"{name}.csv", index=False)
     paths = (
@@ -157,6 +193,12 @@ def main(argv: list[str] | None = None) -> int:
     if banner:
         md += [f"**{banner}**", ""]
     md += ["## Data", "", describe(table, counts), ""]
+    if excluded:
+        md += [
+            f"**S2: {len(excluded)} patients outside acceptance excluded before every estimate**"
+            f" ({', '.join(excluded)}; {args.exclude_outside_acceptance}).",
+            "",
+        ]
     if clean_only:
         md += ["Clean arms only: descriptive tables (clean_levels.csv), no contrasts.", ""]
     else:
@@ -189,6 +231,15 @@ def main(argv: list[str] | None = None) -> int:
             ),
             "",
         ]
+    if "additivity" in results:
+        md += ["## D8 additivity (secondary, 95% CI)", ""]
+        md += [
+            _md_table(
+                results["additivity"],
+                ["outcome", "quantity", "theta", "ci_lo", "ci_hi", "n_patients", "additive"],
+            ),
+            "",
+        ]
     md += ["## Files", ""]
     md += [f"- {name}.csv" for name in results]
     md += [f"- figures/{p.name}" for p in paths]
@@ -201,6 +252,8 @@ def main(argv: list[str] | None = None) -> int:
         "n_boot_confirmatory": args.n_boot_confirmatory,
         "boot_seed": args.boot_seed,
         "protocol_tag": args.protocol_tag,
+        "excluded_outside_acceptance": excluded,
+        "additivity": args.additivity,
         "seconds": round(time.perf_counter() - t_start, 1),
     }
     md += ["", "## Run", "", "```json", json.dumps(manifest, indent=1), "```", ""]

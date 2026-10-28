@@ -716,6 +716,88 @@ def person_year(effects: pd.DataFrame, boot: ef.Bootstrap, outcomes=PY_OUTCOMES)
 # ---------------------------------------------------------------- all
 
 
+# ---------------------------------------------------------------- D8 additivity
+
+
+# D8: each event type of the mixed suite and the main grid's typical arm that measures one event
+ADDITIVITY_ARMS = {
+    "pisa": "pisa_typical",  # #1
+    "dropout": "dropout_short",  # #3
+    "stale": "frozen_typical",  # #6
+    "spike": "spike_typical",  # #8
+}
+DRIFT_ARMS = {-1.0: "drift_low", 1.0: "drift_high"}  # #10, #12
+DRIFT_WINDOWS_PER_DAY = 2  # D8: a day holds two 12-h windows of a continuous drift
+ADDITIVITY_OUTCOMES = (HARM, "minutes_below_54", "minutes_below_70", "minutes_above_180")
+
+
+def read_additivity(records: Sequence[Mapping]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(daily, events) frames from experiments/additivity.py's per-patient records: `daily` has
+    patient_id, run (clean or faulted), day and the stored outcomes; `events` has patient_id, day,
+    the event counts and the drift sign."""
+    daily, events = [], []
+    for r in records:
+        pid = r["patient"] if str(r["patient"]).startswith("sim:") else f"sim:{r['patient']}"
+        for run in ("clean", "faulted"):
+            for d in r.get(run, {}).get("days", []):
+                daily.append({"patient_id": pid, "run": run, **d})
+        events += [{"patient_id": pid, **e} for e in r["events"]]
+    return pd.DataFrame(daily), pd.DataFrame(events)
+
+
+def additivity(
+    daily: pd.DataFrame,
+    events: pd.DataFrame,
+    effects: pd.DataFrame,
+    boot: ef.Bootstrap,
+    outcomes: Sequence[str] = ADDITIVITY_OUTCOMES,
+    controller: str = PRIMARY_CONTROLLER,
+) -> pd.DataFrame:
+    """D8: per patient, observed = mean over days 2-7 of (faulted - clean) per day; predicted =
+    sum over event types of the run's events per day x the patient's mean per-event effect of the
+    matching typical arm in the main grid, plus 2 windows per day x the drift arm of the day's
+    drift sign. Patient-bootstrap means and 95% CIs of observed, predicted and their difference;
+    "additive" when the difference's CI includes 0 (difference rows only)."""
+    outcomes = [o for o in outcomes if o in daily and o in effects]
+    e = effects[effects["controller"] == controller]
+    per_event = e.groupby(["arm", "patient_id"])[outcomes].mean()
+
+    def arm_effect(arm: str) -> pd.DataFrame:
+        if arm not in per_event.index.get_level_values(0):
+            return pd.DataFrame(np.nan, index=pd.Index([], name="patient_id"), columns=outcomes)
+        return per_event.loc[arm]
+
+    wide = daily.pivot_table(index=["patient_id", "day"], columns="run", values=outcomes)
+    obs = wide.xs("faulted", axis=1, level=1) - wide.xs("clean", axis=1, level=1)
+    obs = obs.groupby("patient_id").mean()
+    ev = events.set_index(["patient_id", "day"])
+    rate = ev[list(ADDITIVITY_ARMS)].groupby("patient_id").mean()  # events per day
+    patients = obs.index
+    pred = pd.DataFrame(0.0, index=patients, columns=outcomes)
+    for kind, arm in ADDITIVITY_ARMS.items():
+        eff = arm_effect(arm).reindex(patients)
+        pred = pred + eff.mul(rate[kind].reindex(patients), axis=0)
+    for sign, arm in DRIFT_ARMS.items():
+        share = (ev["drift_sign"] == sign).groupby("patient_id").mean().reindex(patients)
+        share = share.fillna(0.0).to_numpy()[:, None]
+        eff = arm_effect(arm).reindex(patients).to_numpy(float)
+        term = np.where(share > 0, DRIFT_WINDOWS_PER_DAY * share * eff, 0.0)  # no drift: no term
+        pred = pred + term
+    rows = []
+    for name, frame in (("observed", obs), ("predicted", pred), ("difference", obs - pred)):
+        est, reps = boot.means(boot.align(frame[outcomes]))
+        lo, hi = ef.percentile_ci(reps)
+        n = np.isfinite(boot.align(frame[outcomes])).sum(0)
+        for j, o in enumerate(outcomes):
+            rows.append({"outcome": o, "quantity": name, "theta": est[j], "ci_lo": lo[j],
+                         "ci_hi": hi[j], "n_patients": int(n[j])})  # fmt: skip
+    out = pd.DataFrame(rows)
+    diff = out["quantity"] == "difference"
+    out["additive"] = pd.array([pd.NA] * len(out), dtype="boolean")
+    out.loc[diff, "additive"] = (out.loc[diff, "ci_lo"] <= 0) & (out.loc[diff, "ci_hi"] >= 0)
+    return out
+
+
 def run(effects: pd.DataFrame, table: pd.DataFrame, boot: ef.Bootstrap) -> dict[str, pd.DataFrame]:
     """Every secondary analysis, by output name (each table labelled secondary or exploratory
     by the caller)."""
@@ -734,6 +816,9 @@ def run(effects: pd.DataFrame, table: pd.DataFrame, boot: ef.Bootstrap) -> dict[
 
 
 __all__ = [
+    "ADDITIVITY_ARMS",
+    "additivity",
+    "read_additivity",
     "FAULT_ARMS",
     "GATE_OPTIONS",
     "LADDERS",
