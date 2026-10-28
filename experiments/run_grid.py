@@ -35,9 +35,10 @@ from ghostlows_aid.profile import ProfileSettings
 OUT = Path("results/grid")
 MAIN_SEED0 = 101  # main seeds 101, 102, ... (PI_decisions §7)
 TRACE_SEED, TRACE_FRACTION = 20261028, 0.10  # fixed before any run
-# PI_decisions §4: the ISF rule is chosen on calibration seeds (experiments/calibrate.py,
-# results/calibration/selection.json) and fixed by amendment; until then it must be given.
-ISF_RULE = None
+# PI_decisions §4: the ISF rule chosen by the pre-specified selection on calibration seeds
+# (experiments/calibrate.py; SPIKE doc §7), to be fixed by amendment. The per-patient ISF scale
+# waits for the PI's reading of the scale step (--isf-scale-map; 1.0 without it).
+ISF_RULE = "rule1800"
 
 
 def keeps_traces(patient: str, seed: int) -> bool:
@@ -53,7 +54,7 @@ def write_atomic(path: Path, write) -> None:
 
 
 def run_job(job) -> str:
-    out, controller, patient, seed, k, n, max_tier, faults, isf_rule = job
+    out, controller, patient, seed, k, n, max_tier, faults, isf_rule, isf_scale = job
     name = f"{controller}_{patient.replace('#', '')}_{seed}"
     marker = out / "units" / f"{name}.json"
     if marker.exists():
@@ -62,10 +63,12 @@ def run_job(job) -> str:
         from ghostlows_aid.analysis import outcomes, schema
     arms = [a for a in arms_for(controller) if a.tier <= max_tier]
     t = time.perf_counter()
-    unit, runs = run_unit(controller, patient, seed, k, n, settings=ProfileSettings(
-        isf_rule=isf_rule), arms=arms, with_faults=faults)  # fmt: skip
+    settings = ProfileSettings(isf_rule=isf_rule, isf_scale=isf_scale)
+    unit, runs = run_unit(controller, patient, seed, k, n, settings=settings, arms=arms,
+                          with_faults=faults)  # fmt: skip
     record = {"controller": controller, "patient": patient, "seed": seed, "k": k, "n": n,
-              "faults": faults, "max_tier": max_tier, "onsets": unit.onsets,
+              "faults": faults, "isf_rule": isf_rule, "isf_scale": isf_scale,
+              "max_tier": max_tier, "onsets": unit.onsets,
               "warmup_s": unit.warmup_seconds, "trunk_s": unit.trunk_seconds,
               "arm_s": {}}  # fmt: skip
     s = unit.trunk.samples
@@ -92,14 +95,13 @@ def run_job(job) -> str:
 
 
 def run(a) -> None:
-    if a.isf_rule is None:
-        raise SystemExit("--isf-rule is needed until the calibrated rule is fixed (§4)")
     if a.faults and not (a.frozen and Path(a.frozen).is_file()):
         raise SystemExit("--faults needs --frozen <the DECISIONS.md that records the freeze>")
     seeds = a.seeds or [MAIN_SEED0 + k for k in range(a.n)]
+    scales = json.loads(Path(a.isf_scale_map).read_text())["isf_scale"] if a.isf_scale_map else {}
     jobs = [
         (a.out, c, p, s, seeds.index(s) if not a.seeds else a.k, a.n, a.max_tier, a.faults,
-         a.isf_rule)
+         a.isf_rule, scales.get(p, 1.0))
         for s in seeds for p in a.patients for c in a.controllers
     ]  # fmt: skip
     t = time.perf_counter()
@@ -186,6 +188,7 @@ def main(argv=None) -> None:
     ap.add_argument("--controllers", nargs="+", default=list(CONTROLLERS))
     ap.add_argument("--max-tier", type=int, default=3, help="0: the trunk only")
     ap.add_argument("--isf-rule", default=ISF_RULE)
+    ap.add_argument("--isf-scale-map", help="calibrate.py's selection.json: per-patient ISF scales")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--faults", action="store_true")
     ap.add_argument("--frozen")

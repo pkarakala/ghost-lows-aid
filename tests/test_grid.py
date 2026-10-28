@@ -52,7 +52,7 @@ def test_contract_filled_from_loop_results():
 def test_resume_skips_finished_units(tmp_path, monkeypatch):
     g = grid()
     monkeypatch.setattr(g, "keeps_traces", lambda p, s: True)
-    job = (tmp_path, "open_loop", PATIENT, SEED, 0, 20, 0, False, "rule1800")
+    job = (tmp_path, "open_loop", PATIENT, SEED, 0, 20, 0, False, "rule1800", 1.0)
     assert g.run_job(job) == "done"
     record = json.loads(next((tmp_path / "units").glob("*.json")).read_text())
     assert record["arm_s"] == {} and record["trunk_s"] > record["warmup_s"] > 0
