@@ -1,0 +1,50 @@
+cff-version: 1.2.0
+message: >-
+  If you use Ghost Lows AID, please cite the software (this file) and Ghost Lows, whose
+  fault suite it uses. Co-authors: Pranav Reddy and Cohen Ferrari.
+title: "Ghost Lows AID: CGM sensor faults inside open-source automated insulin delivery"
+type: software
+authors:
+  - given-names: Pranav
+    family-names: Reddy
+    orcid: "https://orcid.org/0009-0007-5767-5438"
+    affiliation: "University of California, Santa Barbara"
+  - given-names: Cohen
+    family-names: Ferrari
+    orcid: "https://orcid.org/0009-0003-8060-9907"
+    affiliation: "University of California, Santa Barbara"
+license: MIT
+repository-code: "https://github.com/pkarakala/ghost-lows-aid"
+abstract: >-
+  Continuous glucose monitors (CGMs) can report false lows, for example when the wearer lies
+  on the sensor (compression lows), and other faults such as dropouts, stale readings and
+  drift. Automated insulin delivery acts on these readings. Ghost Lows AID injects the Ghost
+  Lows fault suite online into unmodified open-source closed-loop algorithms (OpenAPS oref0
+  first) in a virtual cohort, and measures the harm each fault causes on true glucose against
+  the identical run without the fault. Research software; not a medical device.
+keywords:
+  - continuous glucose monitoring
+  - CGM
+  - automated insulin delivery
+  - closed loop
+  - artificial pancreas
+  - OpenAPS
+  - oref0
+  - sensor faults
+  - pressure-induced sensor attenuation
+  - compression artifacts
+  - compression artefacts
+  - type 1 diabetes
+  - "UVA/Padova simulator"
+  - Python
+references:
+  - type: software
+    title: "Ghost Lows: an open benchmark for real-time CGM low-glucose alarms under sensor faults"
+    authors:
+      - given-names: Pranav
+        family-names: Reddy
+      - given-names: Cohen
+        family-names: Ferrari
+    doi: 10.5281/zenodo.23573707
+    repository-code: "https://github.com/pkarakala/ghost-lows"
+    license: MIT
