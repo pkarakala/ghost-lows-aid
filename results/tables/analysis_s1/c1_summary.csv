@@ -1,0 +1,6 @@
+analysis,n_boot,tau_b,tau_b_lo,tau_b_hi,total_alarm,p_total_positive_alarm,share_estimable_alarm,share_alarm,share_alarm_lo,share_alarm_hi,total_insulin,p_total_positive_insulin,share_estimable_insulin,share_insulin,share_insulin_lo,share_insulin_hi,share_diff,share_diff_lo,share_diff_hi,discordant
+main,10000,,,,,0.0,False,,,,5.619160000000006,0.8469,False,,,,,,,
+every_night,10000,,,,,0.0,False,,,,5.858000000000006,0.8558,False,,,,,,,
+threshold_alarm,10000,,,,,0.0,False,,,,5.619160000000006,0.8469,False,,,,,,,
+long_gaps_low,10000,,,,,0.0,False,,,,,0.0,False,,,,,,,
+long_gaps_high,10000,,,,,0.0,False,,,,,0.0,False,,,,,,,

@@ -1,0 +1,85 @@
+controller,scenario,outcome,arm,per_person_year,ci_lo,ci_hi,rates_per_day
+oref0_tb,central,risk_weighted_min,pisa_typical,535.5133999999999,-495.6114783333333,1568.2025466666637,pisa_typical 0.86
+oref0_tb,central,risk_weighted_min,dropout_short,-600.546666666666,-2086.3643333333316,702.2964999999999,dropout_short 2
+oref0_tb,central,risk_weighted_min,frozen_typical,419.26333333333383,-645.3260833333328,1575.4616666666666,frozen_typical 1
+oref0_tb,central,risk_weighted_min,spike_typical,-999.1266666666663,-2152.2407499999977,61.63024999999981,spike_typical 1
+oref0_tb,central,risk_weighted_min,drift_low,-1429.34,-2447.2884999999997,-416.0939166666677,drift_low 1
+oref0_tb,central,risk_weighted_min,drift_high,4125.230000000001,2357.389,5882.960499999999,drift_high 1
+oref0_tb,central,risk_weighted_min,total,2050.9934000000026,-1980.171598333333,5993.375190000001,"pisa_typical 0.86, dropout_short 2, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,central,minutes_below_54,pisa_typical,-95.21633333333335,-216.591,-10.463333333333333,pisa_typical 0.86
+oref0_tb,central,minutes_below_54,dropout_short,4.866666666666678,-253.12749999999994,221.43333333333334,dropout_short 2
+oref0_tb,central,minutes_below_54,frozen_typical,1.2166666666666714,-83.94999999999999,77.89708333333317,frozen_typical 1
+oref0_tb,central,minutes_below_54,spike_typical,-41.36666666666667,-183.80791666666653,71.81374999999984,spike_typical 1
+oref0_tb,central,minutes_below_54,drift_low,-192.23333333333335,-361.35,-69.35,drift_low 1
+oref0_tb,central,minutes_below_54,drift_high,680.1166666666667,237.25000000000006,1284.8304166666665,drift_high 1
+oref0_tb,central,minutes_below_54,total,357.3836666666666,-7.508658333333455,732.9461583333331,"pisa_typical 0.86, dropout_short 2, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,central,minutes_below_70,pisa_typical,-443.6453333333333,-680.1166666666666,-232.28599999999997,pisa_typical 0.86
+oref0_tb,central,minutes_below_70,dropout_short,-221.4333333333334,-832.1999999999998,343.1608333333329,dropout_short 2
+oref0_tb,central,minutes_below_70,frozen_typical,-45.016666666666616,-468.4775,419.78041666666644,frozen_typical 1
+oref0_tb,central,minutes_below_70,spike_typical,-380.8166666666667,-798.1941666666667,28.165833333332333,spike_typical 1
+oref0_tb,central,minutes_below_70,drift_low,-1382.1333333333332,-1752.0,-1048.7666666666667,drift_low 1
+oref0_tb,central,minutes_below_70,drift_high,1932.0666666666668,1197.1087499999999,2665.7166666666662,drift_high 1
+oref0_tb,central,minutes_below_70,total,-540.9786666666664,-2148.7927166666664,1067.0781083333327,"pisa_typical 0.86, dropout_short 2, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,central,minutes_above_180,pisa_typical,1549.6196666666665,694.7391749999999,2598.071824999999,pisa_typical 0.86
+oref0_tb,central,minutes_above_180,dropout_short,-204.4,-640.0274999999998,231.22749999999968,dropout_short 2
+oref0_tb,central,minutes_above_180,frozen_typical,541.4166666666667,89.88125000000024,1058.5304166666665,frozen_typical 1
+oref0_tb,central,minutes_above_180,spike_typical,253.06666666666666,-155.79416666666654,683.7666666666665,spike_typical 1
+oref0_tb,central,minutes_above_180,drift_low,1991.6833333333332,1461.095,2628.060833333333,drift_low 1
+oref0_tb,central,minutes_above_180,drift_high,-1098.6499999999999,-1682.65,-508.4754166666674,drift_high 1
+oref0_tb,central,minutes_above_180,total,3032.736333333333,1369.6503333333342,4980.414049999999,"pisa_typical 0.86, dropout_short 2, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,low,risk_weighted_min,pisa_typical,50.0479813084112,-46.31882975077882,146.56098566978164,pisa_typical 0.0803738
+oref0_tb,low,risk_weighted_min,dropout_long,,,,dropout_long 0.13
+oref0_tb,low,risk_weighted_min,frozen_typical,419.26333333333383,-645.3260833333328,1575.4616666666666,frozen_typical 1
+oref0_tb,low,risk_weighted_min,spike_typical,-999.1266666666663,-2152.2407499999977,61.63024999999981,spike_typical 1
+oref0_tb,low,risk_weighted_min,drift_low,-1429.34,-2447.2884999999997,-416.0939166666677,drift_low 1
+oref0_tb,low,risk_weighted_min,drift_high,4125.230000000001,2357.389,5882.960499999999,drift_high 1
+oref0_tb,low,risk_weighted_min,total,,,,"pisa_typical 0.0803738, dropout_long 0.13, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,low,minutes_below_54,pisa_typical,-8.898722741433023,-20.242149532710283,-0.9778816199376946,pisa_typical 0.0803738
+oref0_tb,low,minutes_below_54,dropout_long,,,,dropout_long 0.13
+oref0_tb,low,minutes_below_54,frozen_typical,1.2166666666666714,-83.94999999999999,77.89708333333317,frozen_typical 1
+oref0_tb,low,minutes_below_54,spike_typical,-41.36666666666667,-183.80791666666653,71.81374999999984,spike_typical 1
+oref0_tb,low,minutes_below_54,drift_low,-192.23333333333335,-361.35,-69.35,drift_low 1
+oref0_tb,low,minutes_below_54,drift_high,680.1166666666667,237.25000000000006,1284.8304166666665,drift_high 1
+oref0_tb,low,minutes_below_54,total,,,,"pisa_typical 0.0803738, dropout_long 0.13, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,low,minutes_below_70,pisa_typical,-41.462180685358256,-63.562305295950146,-21.708971962616822,pisa_typical 0.0803738
+oref0_tb,low,minutes_below_70,dropout_long,,,,dropout_long 0.13
+oref0_tb,low,minutes_below_70,frozen_typical,-45.016666666666616,-468.4775,419.78041666666644,frozen_typical 1
+oref0_tb,low,minutes_below_70,spike_typical,-380.8166666666667,-798.1941666666667,28.165833333332333,spike_typical 1
+oref0_tb,low,minutes_below_70,drift_low,-1382.1333333333332,-1752.0,-1048.7666666666667,drift_low 1
+oref0_tb,low,minutes_below_70,drift_high,1932.0666666666668,1197.1087499999999,2665.7166666666662,drift_high 1
+oref0_tb,low,minutes_below_70,total,,,,"pisa_typical 0.0803738, dropout_long 0.13, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,low,minutes_above_180,pisa_typical,144.82426791277257,64.92889485981308,242.81045093457936,pisa_typical 0.0803738
+oref0_tb,low,minutes_above_180,dropout_long,,,,dropout_long 0.13
+oref0_tb,low,minutes_above_180,frozen_typical,541.4166666666667,89.88125000000024,1058.5304166666665,frozen_typical 1
+oref0_tb,low,minutes_above_180,spike_typical,253.06666666666666,-155.79416666666654,683.7666666666665,spike_typical 1
+oref0_tb,low,minutes_above_180,drift_low,1991.6833333333332,1461.095,2628.060833333333,drift_low 1
+oref0_tb,low,minutes_above_180,drift_high,-1098.6499999999999,-1682.65,-508.4754166666674,drift_high 1
+oref0_tb,low,minutes_above_180,total,,,,"pisa_typical 0.0803738, dropout_long 0.13, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,high,risk_weighted_min,pisa_typical,550.5277943925232,-509.5071272585669,1612.170842367598,pisa_typical 0.884112
+oref0_tb,high,risk_weighted_min,dropout_long,,,,dropout_long 0.24
+oref0_tb,high,risk_weighted_min,frozen_typical,419.26333333333383,-645.3260833333328,1575.4616666666666,frozen_typical 1
+oref0_tb,high,risk_weighted_min,spike_typical,-999.1266666666663,-2152.2407499999977,61.63024999999981,spike_typical 1
+oref0_tb,high,risk_weighted_min,drift_low,-1429.34,-2447.2884999999997,-416.0939166666677,drift_low 1
+oref0_tb,high,risk_weighted_min,drift_high,4125.230000000001,2357.389,5882.960499999999,drift_high 1
+oref0_tb,high,risk_weighted_min,total,,,,"pisa_typical 0.884112, dropout_long 0.24, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,high,minutes_below_54,pisa_typical,-97.88595015576325,-222.66364485981308,-10.75669781931464,pisa_typical 0.884112
+oref0_tb,high,minutes_below_54,dropout_long,,,,dropout_long 0.24
+oref0_tb,high,minutes_below_54,frozen_typical,1.2166666666666714,-83.94999999999999,77.89708333333317,frozen_typical 1
+oref0_tb,high,minutes_below_54,spike_typical,-41.36666666666667,-183.80791666666653,71.81374999999984,spike_typical 1
+oref0_tb,high,minutes_below_54,drift_low,-192.23333333333335,-361.35,-69.35,drift_low 1
+oref0_tb,high,minutes_below_54,drift_high,680.1166666666667,237.25000000000006,1284.8304166666665,drift_high 1
+oref0_tb,high,minutes_below_54,total,,,,"pisa_typical 0.884112, dropout_long 0.24, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,high,minutes_below_70,pisa_typical,-456.08398753894073,-699.1853582554515,-238.798691588785,pisa_typical 0.884112
+oref0_tb,high,minutes_below_70,dropout_long,,,,dropout_long 0.24
+oref0_tb,high,minutes_below_70,frozen_typical,-45.016666666666616,-468.4775,419.78041666666644,frozen_typical 1
+oref0_tb,high,minutes_below_70,spike_typical,-380.8166666666667,-798.1941666666667,28.165833333332333,spike_typical 1
+oref0_tb,high,minutes_below_70,drift_low,-1382.1333333333332,-1752.0,-1048.7666666666667,drift_low 1
+oref0_tb,high,minutes_below_70,drift_high,1932.0666666666668,1197.1087499999999,2665.7166666666662,drift_high 1
+oref0_tb,high,minutes_below_70,total,,,,"pisa_typical 0.884112, dropout_long 0.24, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"
+oref0_tb,high,minutes_above_180,pisa_typical,1593.0669470404982,714.2178434579437,2670.914960280373,pisa_typical 0.884112
+oref0_tb,high,minutes_above_180,dropout_long,,,,dropout_long 0.24
+oref0_tb,high,minutes_above_180,frozen_typical,541.4166666666667,89.88125000000024,1058.5304166666665,frozen_typical 1
+oref0_tb,high,minutes_above_180,spike_typical,253.06666666666666,-155.79416666666654,683.7666666666665,spike_typical 1
+oref0_tb,high,minutes_above_180,drift_low,1991.6833333333332,1461.095,2628.060833333333,drift_low 1
+oref0_tb,high,minutes_above_180,drift_high,-1098.6499999999999,-1682.65,-508.4754166666674,drift_high 1
+oref0_tb,high,minutes_above_180,total,,,,"pisa_typical 0.884112, dropout_long 0.24, frozen_typical 1, spike_typical 1, drift_low 1, drift_high 1"

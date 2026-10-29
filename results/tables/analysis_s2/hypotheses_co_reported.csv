@@ -1,0 +1,4 @@
+id,controller,arm,outcome,theta,ci_lo,ci_hi,level,n_patients,label
+H1,oref0_tb,pisa_typical,minutes_below_54,-0.11600000000000002,-0.2720999999999991,0.004,0.95,25,"co-reported, 95% CI, uncorrected"
+H1,oref0_tb,pisa_typical,minutes_below_70,-1.192,-2.0720999999999994,-0.37199999999999994,0.95,25,"co-reported, 95% CI, uncorrected"
+H2,oref0_tb,interference_large,minutes_below_54,11.959555555555555,8.65188888888889,15.384077777777781,0.95,25,"co-reported, 95% CI, uncorrected"

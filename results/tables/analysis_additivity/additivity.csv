@@ -1,0 +1,17 @@
+outcome,quantity,theta,ci_lo,ci_hi,n_patients,additive,reading,left_out_invalid,left_out_no_effect
+risk_weighted_min,observed,-1.4922222222222188,-13.611111111111105,9.93983333333333,30,,,0,0
+minutes_below_54,observed,-0.4944444444444444,-1.383472222222222,0.31666666666666665,30,,,0,0
+minutes_below_70,observed,-3.9777777777777774,-8.028472222222222,-0.4219444444444462,30,,,0,0
+minutes_above_180,observed,9.155555555555557,1.299583333333335,18.022499999999997,30,,,0,0
+risk_weighted_min,predicted,1.8413703703703768,-12.682564197530844,15.38575709876544,30,,,0,0
+minutes_below_54,predicted,-0.32216049382716044,-2.2127438271604936,1.134598765432098,30,,,0,0
+minutes_below_70,predicted,-4.606543209876543,-10.682652777777779,1.4984598765432011,30,,,0,0
+minutes_above_180,predicted,14.717469135802467,8.256069444444446,21.401399691358023,30,,,0,0
+risk_weighted_min,difference,-3.333592592592595,-22.05997685185185,17.58961543209873,30,False,too imprecise to detect a departure of half the observed harm (R not estimable),0,0
+minutes_below_54,difference,-0.1722839506172839,-1.3062145061728392,1.1499259259259202,30,False,too imprecise to detect a departure of half the observed harm (R not estimable),0,0
+minutes_below_70,difference,0.6287654320987656,-6.418251543209872,7.317109567901233,30,False,too imprecise to detect a departure of half the observed harm,0,0
+minutes_above_180,difference,-5.561913580246912,-13.385291666666662,3.48056944444443,30,False,too imprecise to detect a departure of half the observed harm,0,0
+risk_weighted_min,relative_departure,,,,30,,,0,0
+minutes_below_54,relative_departure,,,,30,,,0,0
+minutes_below_70,relative_departure,-0.15806952203600252,-4.906136801957398,2.056591648973814,30,,,0,0
+minutes_above_180,relative_departure,-0.6074905609492987,-5.639591071762124,0.3195086167813554,30,,,0,0

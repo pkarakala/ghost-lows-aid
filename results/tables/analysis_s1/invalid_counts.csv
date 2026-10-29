@@ -1,0 +1,11 @@
+controller,slot,arm,rows,invalid_arms,dropped,dropped_by_other_controller
+oref0_tb,any,clean,300,0,0,0
+oref0_tb,any,drift_high,300,0,0,0
+oref0_tb,any,drift_low,300,0,0,0
+oref0_tb,any,dropout_short,300,0,0,0
+oref0_tb,any,frozen_typical,300,0,0,0
+oref0_tb,any,spike_typical,300,0,0,0
+oref0_tb,dose,clean,300,0,1,0
+oref0_tb,dose,interference_large,300,1,1,0
+oref0_tb,night,clean,300,0,0,0
+oref0_tb,night,pisa_typical,300,0,0,0
