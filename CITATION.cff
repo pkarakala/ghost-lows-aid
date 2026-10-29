@@ -4,6 +4,8 @@ message: >-
   fault suite it uses. Co-authors: Pranav Reddy and Cohen Ferrari.
 title: "Ghost Lows AID: CGM sensor faults inside open-source automated insulin delivery"
 type: software
+version: 0.1.0
+date-released: "2026-10-29"
 authors:
   - given-names: Pranav
     family-names: Reddy

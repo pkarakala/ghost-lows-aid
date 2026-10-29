@@ -1,0 +1,75 @@
+{
+  "upload_type": "software",
+  "title": "Ghost Lows AID: CGM sensor faults inside open-source automated insulin delivery",
+  "creators": [
+    {
+      "name": "Reddy, Pranav",
+      "orcid": "0009-0007-5767-5438",
+      "affiliation": "University of California, Santa Barbara"
+    },
+    {
+      "name": "Ferrari, Cohen",
+      "orcid": "0009-0003-8060-9907",
+      "affiliation": "University of California, Santa Barbara"
+    }
+  ],
+  "description": "Continuous glucose monitors (CGMs) can give false readings, such as compression lows when the wearer lies on the sensor, and automated insulin delivery acts on them. Ghost Lows AID injects the Ghost Lows sensor-fault suite online into unmodified OpenAPS oref0 0.7.1 (temp basal and SMB modes) in 30 virtual patients (UVA/Padova simulator, simglucose), and measures each fault's harm on true glucose against a paired fault-free branch of the same run. The protocol and analysis code were frozen by the git tag protocol-v1 before any faulted run. In this simulator, a typical compression low at night added 5.4 min (97.5% CI 2.4 to 9.0) above 180 mg/dL per event, a negligible effect; a large drug-interference false high (+60 mg/dL) added 50.1 min (95% CI 41.8 to 58.6) below 70 mg/dL per event, a meaningful harm; and the faults that cause the most false alarms were not those that cause the most insulin harm. Includes the protocol, harness, analysis code, results and figures. Research software; not a medical device.",
+  "license": "MIT",
+  "language": "eng",
+  "keywords": [
+    "continuous glucose monitoring",
+    "CGM",
+    "automated insulin delivery",
+    "closed loop",
+    "artificial pancreas",
+    "OpenAPS",
+    "oref0",
+    "sensor faults",
+    "pressure-induced sensor attenuation",
+    "compression artifacts",
+    "drug interference",
+    "type 1 diabetes",
+    "UVA/Padova simulator",
+    "simulation",
+    "Python"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.23720382",
+      "relation": "isDerivedFrom",
+      "resource_type": "software",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "10.5281/zenodo.23573707",
+      "relation": "requires",
+      "resource_type": "software",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "https://github.com/pkarakala/ghost-lows-aid/blob/main/docs/reference/README.md",
+      "relation": "isDocumentedBy",
+      "resource_type": "publication-softwaredocumentation",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://github.com/pkarakala/ghost-lows-aid/blob/main/results/README.md",
+      "relation": "isDocumentedBy",
+      "resource_type": "publication-softwaredocumentation",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://github.com/openaps/oref0",
+      "relation": "requires",
+      "resource_type": "software",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://github.com/jxx123/simglucose",
+      "relation": "requires",
+      "resource_type": "software",
+      "scheme": "url"
+    }
+  ],
+  "notes": "Co-authors with equal contribution: Pranav Reddy and Cohen Ferrari. Independent project by UCSB students; not funded or endorsed by UCSB. The protocol was frozen by the git tag protocol-v1 before any faulted run. Simulation results only; no clinician has reviewed the protocol."
+}
