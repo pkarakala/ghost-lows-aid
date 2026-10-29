@@ -1,0 +1,2 @@
+harm_optimal,alarm_optimal,alarm_rule_feasible,alarm_rule_level,coincide_share,n_replicates,w_compression_night,delta,harm_controller,alarm_controller,label
+,,False,0,,0,0.86,0.0,oref0_tb,open_loop,"in-sample, descriptive"

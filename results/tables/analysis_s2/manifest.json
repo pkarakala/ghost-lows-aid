@@ -1,0 +1,32 @@
+{
+ "commit": "69c6c1364afc1033b0d0edd9cb84fb99e678a010",
+ "argv": [
+  "--input",
+  "results/grid/outcomes",
+  "--protocol-tag",
+  "protocol-v1",
+  "--exclude-outside-acceptance",
+  "--no-figures",
+  "--out",
+  "results/analysis_s2"
+ ],
+ "inputs": [
+  "results/grid/outcomes"
+ ],
+ "data_source": [
+  "simulation"
+ ],
+ "n_boot": 2000,
+ "n_boot_confirmatory": 10000,
+ "boot_seed": 0,
+ "protocol_tag": "protocol-v1",
+ "excluded_outside_acceptance": [
+  "sim:adolescent#002",
+  "sim:adolescent#007",
+  "sim:child#002",
+  "sim:child#003",
+  "sim:child#008"
+ ],
+ "additivity": null,
+ "seconds": 20.8
+}

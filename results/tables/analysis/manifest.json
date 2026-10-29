@@ -1,0 +1,24 @@
+{
+ "commit": "69c6c1364afc1033b0d0edd9cb84fb99e678a010",
+ "argv": [
+  "--input",
+  "results/grid/outcomes",
+  "--protocol-tag",
+  "protocol-v1",
+  "--out",
+  "results/analysis"
+ ],
+ "inputs": [
+  "results/grid/outcomes"
+ ],
+ "data_source": [
+  "simulation"
+ ],
+ "n_boot": 2000,
+ "n_boot_confirmatory": 10000,
+ "boot_seed": 0,
+ "protocol_tag": "protocol-v1",
+ "excluded_outside_acceptance": [],
+ "additivity": null,
+ "seconds": 26.7
+}

@@ -1,0 +1,3 @@
+controller,arm,outcome,slope_per_mg_dl_h,ci_lo,ci_hi,n_patients
+oref0_tb,pisa_typical,minutes_above_180,0.33354304479194685,0.07153127204302881,0.6236084680966958,30
+oref0_tb,pisa_typical,risk_weighted_min,0.09116339138401736,-0.44686072843299524,0.6631555679167946,30

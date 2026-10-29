@@ -1,0 +1,7 @@
+option,prefix,delta_pisa,delta_pisa_lo,delta_pisa_hi,delta_clean,delta_clean_lo,delta_clean_hi,net_per_night,net_per_night_lo,net_per_night_hi,false_alarms_per_night,false_alarms_per_night_lo,false_alarms_per_night_hi,l2_sensitivity,l2_sensitivity_lo,l2_sensitivity_hi,l1_sensitivity,l1_sensitivity_lo,l1_sensitivity_hi,n_patients_harm
+no_gate,trend,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,
+aggressive,baysal_aggressive,,,,,,,,,,,,,,,,,,,0.0
+trial,baysal_trial,,,,,,,,,,,,,,,,,,,0.0
+nominal,baysal_nominal,,,,,,,,,,,,,,,,,,,0.0
+cautious,baysal_cautious,,,,,,,,,,,,,,,,,,,0.0
+matched_filter,matched_filter,,,,,,,,,,,,,,,,,,,0.0
