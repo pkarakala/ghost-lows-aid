@@ -31,6 +31,6 @@ Every result is a simulation result, not a clinical finding.
 - All patients are virtual. The 2008 simulator model has known gaps, for example in how it handles exercise and illness.
 - One open-source algorithm in two modes. Commercial systems are not studied, and nothing here describes their safety.
 - Fault sizes and rates come from the literature where it exists and are our assumptions where it does not.
-- No clinician has reviewed the protocol yet. The open clinical questions are listed in [CLINICAL_REVIEW.md](CLINICAL_REVIEW.md).
+- No clinician has reviewed the protocol. Its clinical judgments are literature-anchored assumptions, not clinically validated, each with a sensitivity range ([CLINICAL_REVIEW.md](CLINICAL_REVIEW.md)). Simulation research by undergraduate students; not medical advice.
 
 **Where the exact specification lives.** [docs/reference/](reference/): the questions and hypotheses are in RESEARCH.md, the simulation in SIMULATION.md, the analysis in BENCHMARK.md, and every decision and its reason in DECISIONS.md.

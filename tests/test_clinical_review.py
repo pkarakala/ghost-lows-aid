@@ -1,6 +1,7 @@
 """The sign-off rules of docs/CLINICAL_REVIEW.md, required before protocol-v1 (ROADMAP M8): a
-ticked sign-off must carry its names and date, a filled-in sign-off must be ticked, and an item
-may be ticked only with the sign-offs it needs (both for items that need a clinician)."""
+ticked sign-off must carry its names and date, a filled-in sign-off must be ticked, an item may
+be ticked only with its literature check, and a judgment item must state its anchor and
+sensitivity. The clinician sign-off is optional (amendment A1)."""
 
 from __future__ import annotations
 
@@ -24,13 +25,15 @@ def problems(text: str) -> list[str]:
     for line in text.splitlines():
         m = ITEM.match(line)
         if m:
-            cur = {"id": m[2], "ticked": m[1] == "x", "clinician": False, "signs": {}}
+            cur = {"id": m[2], "ticked": m[1] == "x", "signs": {}}
             items.append(cur)
             continue
         if cur is None:
             continue
         if line.startswith("  - **Needs a clinician"):
-            cur["clinician"] = True
+            out.append(f"{cur['id']}: no item waits for a clinician (A1)")
+        if line.startswith("  - **Judgment") and not ("Anchor:" in line and "Sensitivity" in line):
+            out.append(f"{cur['id']}: judgment without its anchor and sensitivity")
         s = SIGN.match(line)
         if s:
             ticked, kind, rest = s[1] == "x", s[2], s[3]
@@ -43,8 +46,7 @@ def problems(text: str) -> list[str]:
                 out.append(f"{cur['id']} {kind}: filled in but not ticked")
             cur["signs"][kind] = ticked and filled
     for it in items:
-        need = ["Literature checked"] + (["Clinician reviewed"] if it["clinician"] else [])
-        missing = [k for k in need if not it["signs"].get(k)]
+        missing = [k for k in ["Literature checked"] if not it["signs"].get(k)]
         if it["ticked"] and missing:
             out.append(f"{it['id']}: ticked without {', '.join(missing)}")
     if not items:
@@ -57,7 +59,7 @@ def test_clinical_review_sign_offs_are_consistent():
 
 
 ITEM_TEXT = """- [{t}] **CR1. A claim.**
-  - **Needs a clinician:** a clinical judgment.
+  - **Judgment:** an assumption. Anchor: a source. Sensitivity: a range.
   - [{l}] Literature checked{lt}
   - [{c}] Clinician reviewed{ct}
 """
@@ -69,7 +71,9 @@ ITEM_TEXT = """- [{t}] **CR1. A claim.**
         (dict(t=" ", l=" ", lt=" (name, date)", c=" ", ct=" (name, role, date)"), False),
         (dict(t=" ", l="x", lt=" (name, date)", c=" ", ct=" (name, role, date)"), True),
         (dict(t=" ", l=" ", lt=": A. Reader, 2026-11-01.", c=" ", ct=" (name, role, date)"), True),
-        (dict(t="x", l="x", lt=": A. Reader, 2026-11-01.", c=" ", ct=" (name, role, date)"), True),
+        # A literature check alone closes a judgment item (A1).
+        (dict(t="x", l="x", lt=": A. Reader, 2026-11-01.", c=" ", ct=" (name, role, date)"), False),
+        (dict(t="x", l=" ", lt=" (name, date)", c=" ", ct=" (name, role, date)"), True),
         (
             dict(
                 t="x",
@@ -85,3 +89,9 @@ ITEM_TEXT = """- [{t}] **CR1. A claim.**
 )
 def test_sign_off_rules_reject_what_they_should(kw, bad):
     assert bool(problems(ITEM_TEXT.format(**kw))) == bad
+
+
+def test_judgments_need_an_anchor_and_no_item_waits_for_a_clinician():
+    lit = "  - [ ] Literature checked (name, date)\n  - [ ] Clinician reviewed (name, role, date)"
+    assert problems(f"- [ ] **CR1. A.**\n  - **Judgment:** no anchor.\n{lit}")
+    assert problems(f"- [ ] **CR1. A.**\n  - **Needs a clinician:** a judgment.\n{lit}")

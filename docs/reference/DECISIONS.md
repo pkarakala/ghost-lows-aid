@@ -4,7 +4,7 @@ The log of paper 2's design decisions (D1-D19) and of its dated amendments, for 
 
 D1-D19 were made on 2026-10-28 by an AI agent (Claude, Anthropic) acting as study lead under authority delegated by the project lead, Pranav Reddy, and are pending his review.
 
-Status on 2026-10-28: no faulted-versus-clean outcome has been computed, and `protocol-v1` is not yet tagged. No clinician has reviewed any item. Clinical dependencies are marked **[clinical review CRn]** and wait for a clinician in [CLINICAL_REVIEW.md](../CLINICAL_REVIEW.md); Cohen Ferrari's literature fact-check is not clinical review. Values we chose are marked **[assumption]** with the reason. Literature keys are in [CITATIONS.md](../CITATIONS.md). "SPIKE §n" is a section of the harness record, [SPIKE_2026-10-28.md](../development/SPIKE_2026-10-28.md). "Our arithmetic" marks a value we derived from cited numbers.
+Status on 2026-10-28: no faulted-versus-clean outcome has been computed, and `protocol-v1` is not yet tagged. No clinician has reviewed any item. Clinical dependencies are marked **[clinical review CRn]** and listed in [CLINICAL_REVIEW.md](../CLINICAL_REVIEW.md); since A1 none waits for a clinician; Cohen Ferrari's literature fact-check is not clinical review. Values we chose are marked **[assumption]** with the reason. Literature keys are in [CITATIONS.md](../CITATIONS.md). "SPIKE §n" is a section of the harness record, [SPIKE_2026-10-28.md](../development/SPIKE_2026-10-28.md). "Our arithmetic" marks a value we derived from cited numbers.
 
 CR numbers follow the order of the study lead's clinical list: CR1 the per-event SESOIs and their per-day reading; CR2 the person's wizard, rescue rule and night response; CR3 treating on the displayed CGM; CR4 the correcting-person rule; CR5 the settings rule and its acceptance criteria; CR6 risk-weighted minutes (GRI weights) as one harm scale; CR7 whether 12 h captures the harm; CR8 the "severe" and "stress" fault levels; CR9 the interference sizes and time courses; CR10 the gate policy, with the person still seeing the raw CGM.
 
@@ -91,7 +91,7 @@ What drove the decisions, as found by 2026-10-28.
 
 The study lead left these to the project lead. Each default applies until he decides.
 
-1. **The SESOIs and their per-event reading.** Default: as D10, 72 min above 180 mg/dL for H1 and 15 min below 70 mg/dL for H2, per event. They need a clinician (CR1).
+1. **The SESOIs and their per-event reading.** Default: as D10, 72 min above 180 mg/dL for H1 and 15 min below 70 mg/dL for H2, per event. A literature-anchored assumption with a post hoc sensitivity (CR1, A1).
 2. **A second algorithm, by amendment:** Trio's oref (the same family) or Loop through Tidepool's LoopAlgorithmToPython (a different algorithm, and the stronger replication). Default: neither is in protocol-v1 (D14).
 3. **Archiving paper 2 on Zenodo.** It needs his Zenodo toggle. Default: not yet; the `protocol-v1` tag's commit and date are the public record (D13).
 4. **Paper 1 wording to fix in a later docs-only release.** Paper 1's CITATIONS describes [Baysal 2014] as "AID suspensions", but its data are PLGS pump suspensions. Paper 1's dropout rate (4 gaps per day at s = 1) has no source and is 8 to 30 times the G6 trial rate, with gaps far shorter than G6 gaps [Vettoretti 2023]. Default: a pull request on paper 1 for his review, with no new release; nothing in paper 1 changes unless he merges it (AGENTS.md rule 7). Paper 2 keeps paper 1's model for comparability and adds the G6 model (D6).
@@ -99,6 +99,6 @@ The study lead left these to the project lead. Each default applies until he dec
 
 ## Amendments
 
-None. No faulted arm has run, and `protocol-v1` is not yet tagged.
+- **A1 (2026-11-23; no result changes; the SESOI re-reading is post hoc, after the v0.1.0 results were seen). No step waits for a clinician.** Requested by the project lead on 2026-11-23: this is undergraduate simulation research, not medical advice, and no step is blocked on a doctor's review. CR1-CR10, CR17 and CR18 change from "needs a clinician" to "judgment: literature-anchored assumption, not clinically validated", each with its anchor and sensitivity, almost all of them analyses already pre-specified; a literature check now closes any item, and the clinician sign-off is optional (CLINICAL_REVIEW.md, `tests/test_clinical_review.py`). No frozen value, rule or result changes; `protocol-v1` does not move. Post hoc, from results/README.md: H1 reads negligible for any SESOI above 9.0 min and H2 reads meaningful harm for any SESOI up to 50.1 min, so both readings hold at half and at double the frozen SESOIs (72 and 15 min). The undergraduate, not-medical-advice statement is added to the README, SUMMARY and RESEARCH.md §6.
 
 Rule: any change after `protocol-v1` is logged here, dated and with its reason, before anything it affects is computed. Each entry (A1, A2, ...) gives the date, whether any affected result existed at the time, the change, the reason and what is expected to change. A pre-specified rule applied after the tag, such as the scaling choice of D8, is logged here in the same form and changes no rule. `protocol-v1` never moves.

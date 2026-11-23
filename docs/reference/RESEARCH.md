@@ -221,6 +221,7 @@ Reported with 95% CIs (patient bootstrap, 2,000 resamples), labelled with their 
 
 Every results text copies these.
 
+- Simulation research by undergraduate students; not medical advice. No clinician reviewed the protocol: its clinical judgments are literature-anchored assumptions, not clinically validated, each with a sensitivity (CLINICAL_REVIEW.md; DECISIONS.md A1). H1 and H2 read the same at half and double their SESOIs (post hoc).
 - Virtual patients come from the 2008 UVA/Padova model, without counter-regulation; hypoglycaemia after over-delivery may be deeper and longer than in people, and rebound sizes are model-bound [Dalla Man 2014; Visentin 2018] **[clinical review CR16]**.
 - One open-source algorithm family (oref0 0.7.1 and its SMB mode), one target (100 mg/dL) and settings we derived; nothing transfers to commercial systems **[clinical review CR5]**.
 - Fault shapes and rates come from literature models and paper 1's assumptions; real fault mixes vary across sensors and people. Paper 1's short-gap, frozen-value and spike rates have no source; the long-gap model comes from retrospective G6 trial downloads, which may miss short real-time gaps that the sensor later backfilled [Vettoretti 2023] **[clinical review CR15]**.
