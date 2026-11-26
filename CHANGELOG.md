@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- No step waits for a clinician (DECISIONS.md A1): clinical judgments are literature-anchored assumptions, not clinically validated, with their anchor and sensitivity; the clinician sign-off is optional; post hoc SESOI re-reading of H1 and H2; an undergraduate, not-medical-advice statement. No result changes.
+
 ## v0.1.0 (2026-10-29)
 
 First archived release: the frozen protocol and its results.

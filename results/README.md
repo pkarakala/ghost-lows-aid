@@ -12,6 +12,8 @@ Both H1 and H2 carry the Monte Carlo flag (within-patient error large relative t
 
 Sensitivity: S1 (every patient at its smallest passing ISF scale) H1 +4.9 min, negligible; H2 +57.3 min, meaningful harm; insulin ranking tau-b vs primary 0.8. S2 (25 patients within the glucose targets) changes no reading. Additivity (7-day mixed-fault runs): no departure detected, but too imprecise to establish it, so person-year estimates are conditional.
 
+Post hoc ([DECISIONS.md](../docs/reference/DECISIONS.md#amendments) A1): H1 stays negligible for any SESOI above 9.0 min and H2 stays meaningful harm for any SESOI up to 50.1 min, so both readings hold at half and double their SESOIs. No clinician reviewed the protocol; its clinical judgments are literature-anchored assumptions, not clinically validated. Simulation research by undergraduate students; not medical advice.
+
 - `tables/analysis/`: primary analysis (summary.md, hypotheses.csv, c1_*.csv, all secondary tables).
 - `tables/analysis_s1/`, `tables/analysis_s2/`, `tables/analysis_additivity/`: sensitivity analyses and the additivity check.
 - `figures/`: forest plots, C1 layers, dose-response, pathway, gate curves (PNG and SVG; each drawn from a CSV in tables/analysis).

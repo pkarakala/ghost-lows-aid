@@ -76,6 +76,7 @@ The layout fills in as the protocol and code land.
 
 - Authors: Pranav Reddy and Cohen Ferrari, co-authors, University of California, Santa Barbara; an independent project, not funded or endorsed by UCSB. `pkarakala` is a username, not a name.
 - Cohen Ferrari's work is a literature fact-check; never describe it as clinical review. The team has no clinician.
+- Undergraduate simulation research, not medical advice. No step waits for a clinician: a clinical judgment is a literature-anchored assumption, not clinically validated, with a sensitivity range (A1). Never write "clinically validated", or "clinically meaningful" as our own judgment.
 - Decisions an agent makes under delegated authority are labelled as such in DECISIONS.md until the project lead reviews them.
 - Commits and pull requests carry no AI attribution: no `Co-Authored-By` trailer, no "generated with" footer, no session link. The disclosure in the README covers AI use.
 - Short, plain sentences. Cite literature claims; give effect sizes with CIs (rule 10).

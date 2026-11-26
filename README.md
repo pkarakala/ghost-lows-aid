@@ -8,7 +8,7 @@ This study asks how much harm each fault type causes when unmodified open-source
 
 **Status:** protocol written; no results yet. It is frozen by the git tag `protocol-v1` before any faulted run is simulated, so no choice can follow the results.
 
-Research software, not a medical device. Do not use it to make treatment decisions.
+Simulation research by undergraduate students. Not medical advice. Research software, not a medical device. Do not use it to make treatment decisions.
 
 ## Where to start
 
@@ -18,7 +18,7 @@ Research software, not a medical device. Do not use it to make treatment decisio
 
 ## Authors and disclosure
 
-Independent project by UCSB students; not funded or endorsed by UCSB. Co-authors: Pranav Reddy and Cohen Ferrari. Research question and study direction: Pranav Reddy. The protocol, software and documentation are being developed with AI coding agents (Claude, Anthropic) under Pranav Reddy's direction. Design decisions made by the agents under authority he delegated are logged in docs/reference/DECISIONS.md and await his review. Literature fact-check: Cohen Ferrari (not started). Clinical review: none yet.
+Independent project by UCSB undergraduate students; not funded or endorsed by UCSB. Co-authors: Pranav Reddy and Cohen Ferrari. Research question and study direction: Pranav Reddy. The protocol, software and documentation are being developed with AI coding agents (Claude, Anthropic) under Pranav Reddy's direction. Design decisions made by the agents under authority he delegated are logged in docs/reference/DECISIONS.md and await his review. Literature fact-check: Cohen Ferrari (not started). Clinical review: none; clinical assumptions are literature-anchored, not clinically validated.
 
 ## Licence
 
